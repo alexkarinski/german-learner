@@ -7,7 +7,7 @@ const READ_LEARN_SYSTEM = "Ты — Макс, парень, носитель р�
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-05 00:26";
+const APP_VERSION = "2026-10-05 00:46";
 const READ_PERSONA = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\n";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
@@ -37,6 +37,7 @@ const FORGOTTEN = 0.2;
       chat: [], story: '', chat_t: 0,   // последние реплики и «дневник» прошлого: переживают смену модели и перезапуск
       plan: null,                        // последний план изучения (из разбора грамматики)
       task: null, mistakes: [], stats: { tasks: 0, ok: 0, partly: 0 },   // задание от Макса, наши недавние ошибки, счёт заданий
+      topic: null,                                                          // последняя разобранная тема (фокус заданий)
     };
   };
   const migrate = st => {  // старые сохранения без полей памяти
@@ -48,6 +49,7 @@ const FORGOTTEN = 0.2;
     if (st.fepoch === undefined) st.fepoch = 0;
     if (st.plan === undefined) st.plan = null;
     if (st.task === undefined) st.task = null;
+    if (st.topic === undefined) st.topic = null;
     if (!Array.isArray(st.mistakes)) st.mistakes = [];
     if (!st.stats) st.stats = { tasks: 0, ok: 0, partly: 0 };
     if (st.touched === undefined) st.touched = (st.log && st.log.length > 0) || st.turns > 0;
@@ -237,6 +239,7 @@ const FORGOTTEN = 0.2;
     out.task = !a.task ? (b.task || null) : !b.task ? a.task : (a.task.t > b.task.t ? a.task : b.task.t > a.task.t ? b.task : { ...a.task, done: a.task.done || b.task.done });
     out.mistakes = [...new Map([...(a.mistakes || []), ...(b.mistakes || [])].map(m => [`${m.t}|${m.user || m.wrong || ''}`, m])).values()].sort((p, q) => p.t - q.t).slice(-20);
     out.stats = (a.stats && b.stats && b.stats.tasks > a.stats.tasks) ? b.stats : (a.stats || b.stats);
+    out.topic = !a.topic ? (b.topic || null) : !b.topic ? a.topic : (a.topic.t >= b.topic.t ? a.topic : b.topic);
     return out;
   }
 
@@ -720,7 +723,9 @@ const FORGOTTEN = 0.2;
       return readTurn(msg, `Источник: ${url}\n${rest ? 'Вопрос собеседника: ' + rest + '\n' : ''}\n${article}`);
     }
     if (mode === 'task') return taskTurn();
-    if (state.task && !state.task.done && mode !== 'chat' && mode !== 'grammar' && mode !== 'read' && !url && (mode === 'answer' || (!mode && looksLikeAnswer(msg)))) return answerTurn(msg);
+    if (mode === 'topic' || (!mode && !url && isTopicAsk(msg))) return topicTurn(msg);
+    if (mode === 'check' || (!mode && /^\s*(макс[,\s]+)?проверь(те)?(?=[\s:,—-]|$)/i.test(msg))) return checkTurn(msg);   // не \b: он не понимает кириллицу
+    if (state.task && !state.task.done && mode !== 'chat' && mode !== 'grammar' && mode !== 'read' && !url && (mode === 'answer' || (!mode && looksLikeAnswer(msg) && !isGrammarAsk(msg)))) return answerTurn(msg);
     if (mode === 'grammar' || (!mode && !url && isGrammarAsk(msg))) return grammarTurn(msg);
     if (mode === 'read' || (!mode && isReading(msg))) return readTurn(msg);
     expose(msg);                      // знакомые слова в сообщении собеседника освежаются
@@ -1022,11 +1027,15 @@ const FORGOTTEN = 0.2;
   // ---------- друг: задания «от Макса», общий прогресс, поправки по ходу ----------
   // Прогресс общий: ваши результаты в заданиях укрепляют (или не укрепляют) те же слова и правила, что учит Макс.
   // Макс сам пробует задание, а ответы — и ваш, и его — проверяет нейтральный проверяющий.
-  const TASK_MAKE_SYSTEM = READ_PERSONA + `Ты предлагаешь другу задание по немецкому, которое ТЫ САМ уже попробовал выполнить; ответами вы обменяетесь, когда он ответит. Ниже наша общая записная книжка, фокус (что нам пора повторить или подтянуть) и наши недавние ошибки. Придумай задание ровно под наш уровень: чуть сложнее того, что мы уверенно делаем. В материале задания используй ТОЛЬКО слова из нашей записной книжки (максимум одно новое). Не говори о программах и проверках. Верни ТОЛЬКО JSON-объект:
-{"intro_ru": "как ты предлагаешь задание другу: по-дружески, 1–2 предложения, скажи, что сам уже попробовал(а) и покажешь свой вариант после его ответа",
+  const TASK_MAKE_SYSTEM = READ_PERSONA + `Ты предлагаешь другу задание по немецкому, которое ТЫ САМ уже попробовал выполнить; ответами вы обменяетесь, когда он ответит. Ниже наша общая записная книжка, фокус (что нам пора повторить или подтянуть) и наши недавние ошибки. Придумай задание ровно под наш уровень: чуть сложнее того, что мы уверенно делаем. В материале задания используй ТОЛЬКО слова из нашей записной книжки (максимум одно новое). Не говори о программах и проверках.
+ТРЕБОВАНИЯ К ЗАДАНИЮ: ровно ОДНА тема и ОДНО действие. Не смешивай темы (нельзя «и окончания прилагательных, и Präteritum»). Либо ОДНО предложение с ОДНИМ пропуском ___, либо одно предложение на перевод/исправление. Формулировка простая, без сложных терминов. Другу должно быть сразу понятно, что именно написать в ответ.
+Верни ТОЛЬКО JSON-объект:
+{"intro_ru": "как ты предлагаешь задание другу: по-дружески, 1–2 предложения, скажи, что сам(а) уже попробовал и покажешь свой вариант после его ответа",
  "kind": "translate_ru_de|fill_gap|build_sentence|fix_error|rephrase",
- "task_ru": "формулировка задания по-русски; для translate_ru_de сюда пиши русское предложение для перевода",
- "task_de": "немецкий материал: предложение с пропуском ___, предложение с ошибкой, фраза для пересказа; пустая строка, если не нужен",
+ "task_ru": "ОДНА понятная инструкция по-русски, например «Вставь пропущенное слово» или «Переведи на немецкий»; для translate_ru_de сюда пиши и русское предложение для перевода",
+ "task_de": "немецкий материал: предложение с ОДНИМ пропуском ___, предложение с ошибкой, фраза; пустая строка, если не нужен",
+ "how_ru": "КАК ОТВЕТИТЬ, одной фразой: что именно написать в ответ, например «Напиши всё предложение целиком, уже с вставленным словом»",
+ "example_ru": "пример формата ответа на ДРУГОМ предложении, например «Если бы было «Ich esse ___ Apfel», ты бы написал: Ich esse einen Apfel.»",
  "hint_ru": "подсказка, если другу будет трудно: чуть раскрывает ход мысли, но не отвечает за него",
  "focus": ["названия правил из списка и/или слова, которые тренирует задание"],
  "my_answer_de": "МОЙ вариант выполнения, как у ученика твоего уровня: можешь ошибиться; себя заранее не исправляй; только известные тебе слова",
@@ -1056,9 +1065,11 @@ const FORGOTTEN = 0.2;
       const r = recall(v.last, v.stab, now); if (r < 0.85) words.push([r, l]);
     }
     const recentCauses = new Set((state.mistakes || []).slice(-6).flatMap(m => m.causes || []));
+    const topicRules = state.topic && Date.now() - state.topic.t < 7 * DAY ? state.topic.rules : [];   // недавно разобранная тема: пока не закрепили, задания о ней
     for (const rule of Object.keys(state.grammar)) {
-      const g = geff(rule); if (g < 0.15 || g > 0.75) continue;
-      rules.push([g - (recentCauses.has(rule) ? 0.3 : 0), rule]);
+      const g = geff(rule), inTopic = topicRules.includes(rule) && g < 0.6;
+      if (!inTopic && (g < 0.15 || g > 0.75)) continue;
+      rules.push([g - (recentCauses.has(rule) ? 0.3 : 0) - (inTopic ? 0.5 : 0), rule]);
     }
     const asc = (a, b) => a[0] - b[0];
     return { words: words.sort(asc).slice(0, 3).map(x => x[1]), rules: rules.sort(asc).slice(0, 2).map(x => x[1]) };
@@ -1080,11 +1091,12 @@ const FORGOTTEN = 0.2;
     }
     const now = Date.now();
     state.task = { id: 't' + now.toString(36), t: now, kind: t.kind || 'build_sentence', intro_ru: t.intro_ru || '', task_ru: t.task_ru || '', task_de: t.task_de || '',
+      how_ru: t.how_ru || 'Напиши ответ одним сообщением.', example_ru: t.example_ru || '',
       hint_ru: t.hint_ru || '', focus: (t.focus || []).slice(0, 4), my_answer_de: t.my_answer_de || '', hack_ru: t.hack_ru || '', done: false };
     state.turns++;
     const reply = { comprehension: [], learning: [], lookups: [], reply_de: '', reply_used: [], reply_gloss_ru: '', review_request: null,
       task: { id: state.task.id, kind: state.task.kind, kind_ru: KIND_RU[state.task.kind] || '', intro_ru: state.task.intro_ru, task_ru: state.task.task_ru,
-        task_de: state.task.task_de, hint_ru: state.task.hint_ru, focus: state.task.focus } };
+        task_de: state.task.task_de, how_ru: state.task.how_ru, example_ru: state.task.example_ru, hint_ru: state.task.hint_ru, focus: state.task.focus } };
     remember('Дай задание', `Предложил задание (${state.task.kind}): ${state.task.task_ru} ${state.task.task_de}`);
     persist();
     return { reply, tokens: [], warning: null };
@@ -1153,6 +1165,59 @@ const FORGOTTEN = 0.2;
       return errs;
     } catch (e) { if (/API|ключ/.test(String(e.message))) throw e; return null; }
   }
+  // ---------- тема: «Макс, объясни…» ----------
+  // Нейтральный преподаватель готовит объяснение под наш уровень; Макс пересказывает по-дружески, связывает с тем, что мы знаем,
+  // и предлагает с чего начать. Правила темы попадают в общую записную книжку и в фокус ближайших заданий.
+  const TOPIC_EXPLAIN_SYSTEM = `Ты нейтральный преподаватель немецкого (не персонаж). Объясняешь ОДНУ тему русско- и украиноязычному ученику уровня A2–B1 (цель — C1): ясно, по-русски, с короткими немецкими примерами из простых слов. Опирайся на список того, что ученик уже знает. Не перегружай. Верни ТОЛЬКО JSON-объект:
+{"title": "название темы", "level": "A1|A2|B1|B2|C1", "summary_ru": "суть темы в 2–3 предложениях", "steps_ru": ["3–5 коротких шагов: как строится или когда употребляется"], "pattern": "наглядный шаблон", "examples": [{"de": "пример", "ru": "перевод"}], "compare_ru": "чем отличается от русского/украинского", "pitfalls_ru": ["типичные ошибки"], "rules": ["названия правил: ТОЧНО из списка известных, если связаны; иначе короткие новые"], "quiz": [{"q_ru": "вопрос для самопроверки", "answer": "ответ"}]}
+3–4 примера, 2 вопроса в quiz. Ничего не выдумывай.`;
+  const TOPIC_MAX_SYSTEM = READ_PERSONA + `Друг попросил объяснить тему. Ты разобрался и теперь объясняешь её как друг, который учится вместе с ним. Ниже: объяснение, которое ты прочитал, и что у нас в памяти по связанным правилам. Говори по-дружески, не пересказывай всё дословно: своими словами, коротко, что важно именно нам. Не говори о программах. Верни ТОЛЬКО JSON-объект:
+{"reply_ru": "как ты понимаешь тему, 3–6 предложений, живым языком; свяжи с тем, что мы уже знаем или забываем", "start_ru": "с чего начнём: один конкретный первый шаг", "hack_ru": "мой лайфхак: как запомнить эту тему, 1–2 предложения",
+ "learning": [{"item": "правило", "kind": "grammar", "rule": "ТОЧНОЕ название из rules объяснения", "strategy": "grammar_contrast|mnemonic|context", "thought": "как запоминаешь, 1–2 предложения", "confidence_after": 0.0}],
+ "reply_de": "короткая реплика по-немецки, 1 предложение, только известные слова", "reply_used": [{"surface": "...", "lemma": "..."}], "reply_gloss_ru": "..."}`;
+  const TOPIC_HINT = /^\s*(макс[,\s]+)?(объясни|расскажи\s+(про|о|об)|что\s+такое|как\s+(строить|использовать|образовать|употреблять|пользоваться)|в\s+чём\s+разница|тема\s*:|помоги\s+(понять|разобраться)|разберём?\s+тему)/i;
+  const isTopicAsk = msg => TOPIC_HINT.test(msg) && !/https?:\/\//.test(msg);
+
+  async function topicTurn(msg) {
+    const topic = msg.replace(TOPIC_HINT, '').replace(/^[\s:,—-]+/, '').trim() || msg;
+    const known = Object.keys(state.grammar).map(r => `- ${r} (у нас сейчас ${geff(r).toFixed(2)})`).join('\n');
+    const ex = await askJson(TOPIC_EXPLAIN_SYSTEM, [{ role: 'user', content: `ТЕМА: ${topic}\n\nЧТО УЧЕНИК УЖЕ ЗНАЕТ (правила):\n${known}` }]);
+    const rules = (ex.rules || []).slice(0, 4).map(name => { const c = constructStatus(name); return { name, status: c.status, g: c.g, key: c.key }; });
+    const max = await askJson(TOPIC_MAX_SYSTEM, [{ role: 'user', content:
+      `${notebookText()}\n\n${recentText()}ОБЪЯСНЕНИЕ, КОТОРОЕ ТЫ ПРОЧИТАЛ:\n${JSON.stringify(ex)}\n\nСВЯЗАННЫЕ ПРАВИЛА В НАШЕЙ ПАМЯТИ:\n${rules.map(r => `  ${r.name}: ${{ known: 'знаем', fading: 'подзабыли', weak: 'знаем слабо', unknown: 'не знаем', new: 'новое для нас' }[r.status]}`).join('\n') || '  —'}\n\nСООБЩЕНИЕ ДРУГА:\n${msg}` }]);
+    const okDe = !(max.reply_de || '').trim() || !violations({ reply_de: max.reply_de, reply_used: max.reply_used }, new Set()).length;
+    if (!okDe) { max.reply_de = ''; max.reply_used = []; }
+    const now = Date.now();
+    for (const r of rules) {   // новые правила темы появляются в общей книжке; знакомые встретились — это повторение
+      if (r.key) { touchRule(r.key, 0.5); continue; }
+      state.grammar[r.name] = 0.1; state.gmeta[r.name] = { last: now, stab: 5 };
+      const it = (max.learning || []).find(l => l.rule === r.name);
+      state.log.push({ item: r.name, strategy: (it && it.strategy) || 'grammar_contrast', thought: (it && it.thought) || (ex.compare_ru || ''), t: now });
+    }
+    state.topic = { t: now, title: ex.title || topic, rules: rules.map(r => r.key || r.name) };   // фокус ближайших заданий
+    state.turns++;
+    const reply = { comprehension: [], learning: [], lookups: [], reply_de: max.reply_de || '', reply_used: max.reply_used || [], reply_gloss_ru: max.reply_gloss_ru || '', review_request: null,
+      topic: { title: ex.title || topic, level: ex.level || '', summary_ru: ex.summary_ru || '', steps_ru: ex.steps_ru || [], pattern: ex.pattern || '', examples: (ex.examples || []).slice(0, 4),
+        compare_ru: ex.compare_ru || '', pitfalls_ru: ex.pitfalls_ru || [], quiz: (ex.quiz || []).slice(0, 2),
+        rules: rules.map(({ name, status, g }) => ({ name, status, g })), max_ru: max.reply_ru || '', start_ru: max.start_ru || '', hack_ru: max.hack_ru || '' } };
+    const tokens = annotate(reply, new Set());
+    remember(msg, `Объяснил тему «${reply.topic.title}»: ${(max.reply_ru || '').slice(0, 200)}`);
+    persist();
+    return { reply, tokens, warning: null };
+  }
+
+  async function checkTurn(msg) {   // явная просьба «проверь моё предложение»
+    const text = msg.replace(/^\s*(макс[,\s]+)?проверь(те)?(\s+(мо[её]|это|пожалуйста))*\s*(предложение)?\s*[:,—-]?\s*/i, '').trim() || msg;
+    const j = await askJson(FRIEND_CHECK_SYSTEM, [{ role: 'user', content: text.slice(0, 800) }]);
+    const errs = (j.errors || []).filter(e => e && e.wrong && e.right && e.wrong !== e.right).slice(0, 4);
+    for (const e of errs) { if (e.rule) touchRule(e.rule, 0.15); }
+    if (errs.length) state.mistakes = [...(state.mistakes || []), ...errs.map(e => ({ t: Date.now(), kind: 'free', wrong: e.wrong, right: e.right, why: e.why || '', causes: e.rule ? [e.rule] : [] }))].slice(-20);
+    state.turns++;
+    const reply = { comprehension: [], learning: [], lookups: [], reply_de: '', reply_used: [], reply_gloss_ru: '', review_request: null, friend_note: errs, check: { text, ok: !errs.length } };
+    remember(msg, errs.length ? `Проверил: нашёл ${errs.length} ошибк. ` + errs.map(e => `${e.wrong} → ${e.right}`).join('; ') : 'Проверил: ошибок не нашёл.');
+    persist();
+    return { reply, tokens: [], warning: null };
+  }
   const nudge = () => {
     const t = state.task;
     if (t && !t.done) return `Ты не ответил на моё задание 🙂 Жми на него выше — или попроси другое (🎯).`;
@@ -1183,6 +1248,7 @@ const FORGOTTEN = 0.2;
       persist(); return snapshot();
     },
     nudge: async () => { await ready; return nudge(); },
+    pending: async () => { await ready; return !!(state.task && !state.task.done); },
     skipTask: async () => { await ready; if (state.task) { state.task.done = true; persist(); } return true; },
     feed: async () => { await ready; return feed.filter(i => (i.e | 0) === (state.fepoch | 0)); },
     clearFeed: async () => { feed = []; save(LS_FEED, feed); if (CS) { clearTimeout(syncTimer); syncTimer = setTimeout(queueSync, 300); } return true; },

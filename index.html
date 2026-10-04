@@ -16,7 +16,20 @@
   --accent:#8aa8ff;--me:#26304d;}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,sans-serif;height:100vh;display:flex;flex-direction:column}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,sans-serif;height:100vh;height:var(--app-h,100dvh);display:flex;flex-direction:column;overflow:hidden}
+main{min-height:0}
+#msgs{overflow-x:hidden}.bot,.me,.card,.sum,.advice{overflow-wrap:anywhere}
+/* кнопки действий — отдельная прокручиваемая строка над полем ввода, а не в одной строке с ним */
+#tools{display:flex;gap:6px;overflow-x:auto;padding:8px 12px 0;border-top:1px solid var(--line);background:var(--panel);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#tools::-webkit-scrollbar{display:none}
+#tools button{flex:none;white-space:nowrap;border:1px solid var(--line);background:none;color:var(--ink);border-radius:16px;padding:5px 11px;font:inherit;font-size:13px;cursor:pointer}
+#tools button:disabled{opacity:.5}
+form{padding-bottom:max(12px,env(safe-area-inset-bottom))!important;border-top:0!important}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip2{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:14px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;text-align:left}
+.how{background:var(--shaky-bg);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:14px}
+.how b{display:block;margin-bottom:2px}
+@media(max-height:640px){#stage{display:none}}
 header{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;background:var(--panel)}
 header h1{font-size:16px;margin:0;flex:1}
 header button{border:1px solid var(--line);background:none;color:var(--ink);border-radius:6px;padding:4px 10px;cursor:pointer}
@@ -27,7 +40,7 @@ main{flex:1;display:grid;grid-template-columns:1fr 340px;min-height:0}
   header{padding:8px 10px;gap:6px;flex-wrap:wrap}header h1{display:none}#chat{min-width:0}form input{min-width:0}#readbtn .lbl,#grambtn .lbl,#taskbtn .lbl{display:none}
   header button,header select{padding:4px 7px;font-size:12px;white-space:nowrap;max-width:110px}
   body.nb aside{display:block;position:fixed;left:0;right:0;bottom:0;top:var(--hh,49px);z-index:5;border:0}
-  #who{width:96px}#char{width:92px;height:98px}#bubble{font-size:16px}#stage{padding:8px 10px;gap:10px}}
+  #who{width:70px}#char{width:66px;height:72px}#rank{display:none}#bubble{font-size:14px;min-height:0;max-height:92px;overflow-y:auto;padding:8px 10px}#stage{padding:6px 10px;gap:8px}}
 #chat{display:flex;flex-direction:column;min-height:0}
 #msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
 .me{align-self:flex-end;background:var(--me);padding:8px 12px;border-radius:12px;max-width:80%}
@@ -122,6 +135,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <select id="effort" title="Усердие: сколько раз ученик проверяет себя при изучении нового слова или правила. Больше усилий — крепче, но без повторов всё равно забывается" style="border:1px solid var(--line);background:none;color:var(--ink);border-radius:6px;padding:4px 6px;font:inherit">
     <option value="0">🎯 Без усилий</option><option value="1">🎯 Лёгкое</option><option value="3" selected>🎯 Среднее</option><option value="5">🎯 Высокое</option>
   </select>
+  <button id="helpbtn" title="Как со мной говорить: примеры фраз и что делают кнопки">❓ Помощь</button>
   <button id="sync" hidden title="Синхронизация между устройствами через Telegram">☁</button>
   <button id="nb">📓 Книжка</button>
   <button id="cfg">⚙ Настройки</button>
@@ -189,11 +203,23 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <div id="bubble" class="idle">Привет! Я Макс. Давай учить немецкий вместе: пиши мне что угодно, а можешь попросить у меня задание 🎯</div>
       <div id="toast"></div>
     </div>
-    <div id="msgs"><div class="note">Пиши Максу по-немецки (или по-русски/по-украински). Ваша общая записная книжка (справа или кнопка 📓) меняется по ходу занятий: его прогресс — это и твой прогресс.</div></div>
-    <form id="f"><input id="in" autocomplete="off" placeholder="Hallo! Wie geht es dir? — или вставьте текст/статью" autofocus>
-      <button type="button" id="taskbtn" title="Макс предложит задание для вас обоих: он сам его уже попробовал и покажет свой вариант после вашего" style="background:none;color:var(--ink);border:1px solid var(--line)">🎯<span class="lbl"> Задание</span></button>
-      <button type="button" id="grambtn" title="Разбор грамматики: ученик попробует перевести текст, найдёт, чему надо научиться, составит план по частям и потренируется" style="background:none;color:var(--ink);border:1px solid var(--line)">🧩<span class="lbl"> Разбор</span></button>
-      <button type="button" id="readbtn" title="Ученик прочитает текст из поля: поймёт ли он его, что выучит и как" style="background:none;color:var(--ink);border:1px solid var(--line)">📖<span class="lbl"> Понимаешь?</span></button>
+    <div id="msgs"><div class="note intro">Пиши Максу как другу — по-русски, по-украински или по-немецки. Ваша общая записная книжка (справа или кнопка 📓) меняется по ходу занятий: его прогресс — это и твой прогресс.
+      <div style="margin-top:8px"><b>Как со мной говорить</b> — нажми на фразу, она подставится в поле:</div>
+      <div class="chips">
+        <button class="chip2" data-fill="Объясни тему: Dativ">💡 Объясни тему: Dativ</button>
+        <button class="chip2" data-fill="В чём разница между dass и weil?">💡 В чём разница между dass и weil?</button>
+        <button class="chip2" data-fill="Проверь: Ich habe gestern ein Buch gekauft.">✍ Проверь: Ich habe gestern ein Buch gekauft.</button>
+        <button class="chip2" data-fill="Как перевести: Obwohl es regnet, gehe ich spazieren.">🧩 Как перевести: Obwohl es regnet, gehe ich spazieren.</button>
+      </div>
+      <div style="margin-top:8px">Кнопки под чатом: <b>🎯 Задание</b> (Макс даёт задание для вас обоих), <b>💡 Объясни тему</b>, <b>✍ Проверь меня</b>, <b>🧩 Разбор текста</b>, <b>📖 Понимаешь?</b>. Для всех, кроме задания, сначала напиши текст в поле.</div></div></div>
+    <div id="tools">
+      <button type="button" id="taskbtn" title="Макс предложит задание для вас обоих: он сам его уже попробовал и покажет свой вариант после вашего">🎯 Задание</button>
+      <button type="button" id="topicbtn" title="Напиши тему в поле (например: Dativ) — Макс разберётся и объяснит">💡 Объясни тему</button>
+      <button type="button" id="checkbtn" title="Напиши в поле своё предложение по-немецки — Макс проверит">✍ Проверь меня</button>
+      <button type="button" id="grambtn" title="Вставь в поле немецкий текст — Макс переведёт, найдёт, чему надо научиться, составит план и потренируется">🧩 Разбор текста</button>
+      <button type="button" id="readbtn" title="Вставь в поле текст или ссылку — Макс скажет, понимает ли он, и выучит нужное">📖 Понимаешь?</button>
+    </div>
+    <form id="f"><input id="in" autocomplete="off" placeholder="Напиши Максу…" autofocus>
       <button id="go">Отправить</button></form>
   </section>
   <aside>
@@ -270,13 +296,32 @@ function botHtml(d){
     const t=r.task;
     h+=`<div class="sec">🎯 Задание от Макса</div><div class="card">
       ${t.intro_ru?`<div>${esc(t.intro_ru)}</div>`:''}
-      <div style="margin-top:6px"><span class="tag" style="margin-left:0">${esc(t.kind_ru||'')}</span> <b>${esc(t.task_ru)}</b></div>
-      ${t.task_de?`<div class="say" style="margin-top:4px">${esc(t.task_de)}</div>`:''}
-      ${t.hint_ru?`<div class="hintbox note" hidden style="margin-top:4px">💡 ${esc(t.hint_ru)}</div>`:''}
+      <div style="margin-top:8px"><b>Что делаем:</b> ${esc(t.task_ru)} <span class="tag">${esc(t.kind_ru||'')}</span></div>
+      ${t.task_de?`<div class="say" style="margin-top:6px">${esc(t.task_de)}</div>`:''}
+      <div class="how"><b>✍ Как ответить</b>${esc(t.how_ru||'Напиши ответ одним сообщением.')}
+        ${t.example_ru?`<div class="note" style="margin-top:4px">${esc(t.example_ru)}</div>`:''}
+        <div class="note" style="margin-top:4px">Напиши ответ в поле внизу и нажми «Отправить». Свой вариант Макс покажет после твоего.</div></div>
+      ${t.hint_ru?`<div class="hintbox note" hidden style="margin-top:6px">💡 ${esc(t.hint_ru)}</div>`:''}
       <div style="margin-top:8px"><button class="mini" data-act="hint" style="margin-left:0">Подсказка</button>
-        <button class="mini" data-act="newtask">Другое задание</button><button class="mini" data-act="skiptask">Пропустить</button></div>
-      <div class="note" style="margin-top:6px">Ответь сообщением. Свой вариант Макс покажет после твоего.</div></div>`;
+        <button class="mini" data-act="newtask">Другое задание</button><button class="mini" data-act="skiptask">Пропустить</button></div></div>`;
   }
+  if(r.topic){
+    const t=r.topic, GS2={known:['known','знаем'],fading:['partial','подзабыли'],weak:['partial','знаем слабо'],unknown:['unknown','не знаем'],new:['new','новое для нас']};
+    h+=`<div class="sec">💡 Тема</div><div class="card"><b>${esc(t.title)}</b>${t.level?`<span class="tag">${esc(t.level)}</span>`:''}
+      <div style="margin-top:4px">${esc(t.summary_ru)}</div>
+      ${(t.steps_ru||[]).length?`<ol style="margin:6px 0 6px 18px;padding:0">${t.steps_ru.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>`:''}
+      ${t.pattern?`<div class="say" style="font-size:15px">${esc(t.pattern)}</div>`:''}
+      ${(t.examples||[]).map(x=>`<div style="margin-top:4px"><b>${esc(x.de)}</b> <span class="note">— ${esc(x.ru)}</span></div>`).join('')}
+      ${t.compare_ru?`<div class="note" style="margin-top:6px">🔀 ${esc(t.compare_ru)}</div>`:''}
+      ${(t.pitfalls_ru||[]).length?`<div style="margin-top:6px">⚠ ${t.pitfalls_ru.map(esc).join('; ')}</div>`:''}
+      ${(t.quiz||[]).length?`<div class="sec" style="margin-top:8px">Проверь себя</div>`+t.quiz.map(q=>`<details><summary>${esc(q.q_ru)}</summary><div class="note">${esc(q.answer)}</div></details>`).join(''):''}
+      ${(t.rules||[]).length?`<div style="margin-top:8px">${t.rules.map(r=>{const s=GS2[r.status]||GS2.new;return `<span class="wc ${s[0]}">${esc(r.name)} · ${s[1]}</span>`}).join('')}</div>`:''}</div>
+      ${t.max_ru?`<div class="sum" style="margin-top:6px"><b>Как я это понимаю:</b> ${esc(t.max_ru)}</div>`:''}
+      ${t.start_ru?`<div class="how"><b>С чего начнём</b>${esc(t.start_ru)}</div>`:''}
+      ${t.hack_ru?`<div class="advice">💡 <b>Лайфхак:</b> ${esc(t.hack_ru)}</div>`:''}
+      <div style="margin-top:8px"><button class="mini" data-act="traintopic" style="margin-left:0">🎯 Потренируем эту тему</button></div>`;
+  }
+  if(r.check&&r.check.ok)h+=`<div class="sec">✍ Проверка</div><div class="card"><b>${esc(r.check.text)}</b><div class="ok"><b>✅ Ошибок не нашёл</b></div></div>`;
   if(r.taskResult){
     const x=r.taskResult, V={ok:['ok','✓ верно'],partly:['','△ частично'],wrong:['no','✗ неверно']}, u=V[x.verdict]||['',''], m=V[x.max_verdict]||['',''];
     h+=`<div class="sec">🎯 Разбор задания</div><div class="card">
@@ -365,6 +410,8 @@ function botHtml(d){
 function add(cls,html){const e=document.createElement('div');e.className=cls;e.innerHTML=html;$('#msgs').append(e);e.scrollIntoView({block:'end'});return e}
 
 // ---- сохранённая переписка: после запуска возвращаются реплики и карточки результатов ----
+const INTRO_HTML=(document.querySelector('#msgs .intro')||{}).outerHTML||'';   // подсказки «как со мной говорить» остаются доступны по кнопке ❓
+$('#helpbtn').onclick=()=>{ add('bot note',INTRO_HTML.replace('class="note intro"','class="note"')); };
 const shown=new Set();
 function renderFeedItem(it){
   if(shown.has(it.id))return; shown.add(it.id);
@@ -379,11 +426,16 @@ async function restoreFeed(){
   items.forEach(renderFeedItem);
   $('#msgs').lastElementChild?.scrollIntoView({block:'end'});
 }
-restoreFeed().then(()=>{ if(api.nudge)api.nudge().then(t=>{ if(t)bubble(esc(t),true) }) });
+restoreFeed().then(()=>{ if(api.nudge)api.nudge().then(t=>{ if(t)bubble(esc(t),true) }); refreshPending(); });
+// Telegram: высота окна с учётом клавиатуры и системных полос, чтобы поле ввода не пряталось под ними
+if(window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData){
+  const fitApp=()=>document.documentElement.style.setProperty('--app-h',(Telegram.WebApp.viewportHeight||innerHeight)+'px');
+  try{Telegram.WebApp.onEvent('viewportChanged',fitApp)}catch(e){} fitApp();
+}
 window.addEventListener('learner-sync',()=>{ if(api.feed)api.feed().then(items=>{const fresh=items.filter(i=>!shown.has(i.id));if(fresh.length){fresh.forEach(renderFeedItem);}}); });
 
 async function send(m,mode){
-  $('#in').value=''; $('#go').disabled=true; $('#readbtn').disabled=true; $('#grambtn').disabled=true; $('#taskbtn').disabled=true;
+  $('#in').value=''; document.querySelectorAll('#tools button,#go').forEach(b=>b.disabled=true);
   add('me',esc(m.length>600?m.slice(0,600)+'…':m));
   const reading=mode==='read'||(!mode&&(m.match(/[A-Za-zÄÖÜäöüß]+/g)||[]).length>=14);
   const hasUrl=/https?:\/\/\S+/.test(m), gram=mode==='grammar';
@@ -406,14 +458,22 @@ async function send(m,mode){
       (r.review_request?`<div class="gloss">🔁 ${esc(r.review_request.text_ru)}</div>`:'')+
       (r.taskResult&&r.taskResult.react_ru?`<div class="gloss">${esc(r.taskResult.react_ru)}</div>`:''));
   }catch(err){wait.className='bot warn'; wait.textContent='Ошибка: '+err.message; mood('confused',5000); bubble('Что-то пошло не так (см. сообщение ниже).',true); if(/ключ|key/i.test(err.message))openSettings()}
-  $('#go').disabled=false; $('#readbtn').disabled=false; $('#grambtn').disabled=false; $('#taskbtn').disabled=false; $('#in').focus(); wait.scrollIntoView({block:'end'});
+  document.querySelectorAll('#tools button,#go').forEach(b=>b.disabled=false); refreshPending(); $('#in').focus(); wait.scrollIntoView({block:'end'});
 }
 $('#f').onsubmit=e=>{e.preventDefault();const m=$('#in').value.trim();if(m)send(m)};
-$('#readbtn').onclick=()=>{const m=$('#in').value.trim();if(m)send(m,'read')};
-$('#grambtn').onclick=()=>{const m=$('#in').value.trim();if(m)send(m,'grammar')};
+// кнопки действий работают с текстом из поля; если поле пустое — подсказываем, что написать
+const needText=hint=>{ $('#in').focus(); toast(hint,4500) };
+$('#readbtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'read'):needText('Вставь в поле немецкий текст или ссылку на статью и нажми «Понимаешь?»')};
+$('#grambtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'grammar'):needText('Вставь в поле немецкий текст (1–5 предложений) и нажми «Разбор текста»')};
+$('#topicbtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'topic'):needText('Напиши в поле тему, например «Dativ» или «dass и weil», и нажми «Объясни тему»')};
+$('#checkbtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'check'):needText('Напиши в поле своё предложение по-немецки и нажми «Проверь меня»')};
 $('#taskbtn').onclick=()=>send('Дай задание','task');
+const refreshPending=()=>{ if(api.pending)api.pending().then(p=>{$('#in').placeholder=p?'Твой ответ на задание Макса…':'Напиши Максу…'}) };
 $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе повторить
+  const chip=e.target.closest('[data-fill]');
+  if(chip){ $('#in').value=chip.dataset.fill; $('#in').focus(); return }
   const b=e.target.closest('button[data-act]'); if(!b)return;
+  if(b.dataset.act==='traintopic'&&!$('#go').disabled){send('Потренируем эту тему','task');return}
   if(b.dataset.act==='hint'){const hb=b.closest('.card').querySelector('.hintbox'); if(hb){hb.hidden=!hb.hidden} return}
   if($('#go').disabled)return;
   if(b.dataset.act==='newtask'){send('Дай другое задание','task');return}
