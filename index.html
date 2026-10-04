@@ -84,7 +84,7 @@ aside h2:first-child{margin-top:0}
 #bubble::before{content:"";position:absolute;left:-8px;top:26px;width:14px;height:14px;background:var(--panel);border-left:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg)}
 #bubble .gloss{font-size:13px}
 #bubble.idle{color:var(--dim);font-size:14px}
-#toast{position:absolute;right:12px;top:10px;font-size:13px;background:var(--known-bg);color:var(--known);padding:3px 10px;border-radius:12px;opacity:0;transition:opacity .4s}
+#toast{position:absolute;right:12px;top:10px;max-width:calc(100% - 24px);z-index:3;font-size:13px;background:var(--known-bg);color:var(--known);padding:3px 10px;border-radius:12px;opacity:0;transition:opacity .4s}
 #toast.on{opacity:1}
 #char .m,#char .x{display:none}
 #char.idle .m-idle,#char.happy .m-happy,#char.think .m-think,#char.aha .m-aha,#char.confused .m-conf{display:inline}
@@ -217,9 +217,9 @@ function mood(m,hold){
   clearTimeout(moodTimer);
   if(hold)moodTimer=setTimeout(()=>$('#char').setAttribute('class','idle'),hold);
 }
-function toast(t){
+function toast(t,ms=4000){
   const e=$('#toast');e.textContent=t;e.classList.add('on');
-  clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.classList.remove('on'),4000);
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.classList.remove('on'),ms);
 }
 function bubble(html,idle){const b=$('#bubble');b.className=idle?'idle':'';b.innerHTML=html}
 
@@ -464,7 +464,11 @@ function updateSync(){
   b.title=s.ok===false?'Ошибка синхронизации: '+s.error:'Синхронизировано. Нажмите, чтобы обновить сейчас';
 }
 window.addEventListener('learner-sync',()=>{updateSync();api.state().then(renderState)});
-$('#sync').onclick=async()=>{$('#sync').textContent='☁ …';await api.syncNow();updateSync()};
+$('#sync').onclick=async()=>{
+  $('#sync').textContent='☁ …'; await api.syncNow(); updateSync();
+  const s=api.syncStatus();   // на телефоне нет подсказок при наведении — причину ошибки показываем прямо в окне
+  toast(s.ok===false?'☁ Не синхронизировано. '+s.error:'☁ Синхронизировано',s.ok===false?12000:3000);
+};
 updateSync();
 </script>
 </body>

@@ -6,6 +6,7 @@ const READ_THINK_SYSTEM = "Ты симулируешь ОДНОГО конкре
 const READ_LEARN_SYSTEM = "Ты симулируешь ОДНОГО конкретного человека: носителя русского и украинского, который учит немецкий (уровень ~B1).\nТы не всезнающая модель и не учитель. Твой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы прочитал словарные статьи по непонятным словам текста. Теперь выучи их и скажи собеседнику, что понимаешь.\nНайденные слова использовать МОЖНО, другие незнакомые — нельзя. Верни ТОЛЬКО JSON-объект:\n{\n  \"learning\": [{\"item\": \"слово\", \"kind\": \"word\", \"lemma\": \"...\", \"strategy\": \"cognate_ru|cognate_uk|morphology|context|mnemonic|grammar_contrast|lookup\",\n                \"thought\": \"как запоминаешь, 1–3 предложения, по-русски\", \"ru\": \"...\", \"uk\": \"...\", \"confidence_after\": 0.0}],\n  \"reply_de\": \"ответ собеседнику по-немецки, 1–3 простых предложения\",\n  \"reply_used\": [{\"surface\": \"...\", \"lemma\": \"...\"}],\n  \"reply_gloss_ru\": \"что хотел сказать, по-русски\",\n  \"after_ru\": \"пересказ по-русски: что ты теперь понимаешь в тексте (3–6 предложений). Опирайся ТОЛЬКО на слова, которые знаешь или только что выучил; про остальное так и скажи\",\n  \"unclear\": [\"что осталось непонятным\"],\n  \"learned_summary\": \"что выучил и КАК (2–4 предложения, своими словами)\",\n  \"grammar_used\": [\"названия правил грамматики из записной книжки, которые заметил в тексте\"]\n}";
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты симулируешь ОДНОГО конкретного человека: носителя русского и украинского, который учит немецкий (уровень ~B1).\nТы не всезнающая модель и не учитель. Твой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
+const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
 /* Браузерная версия «мозга» ученика. Порт learner.py + server.py на JS.
@@ -31,10 +32,14 @@ const FORGOTTEN = 0.2;
       log: [],
       turns: 0, last_ask: -99,   // счётчик реплик и когда ученик в последний раз просил повторить
       epoch: 0, touched: false,  // для синхронизации: поколение (сброс/перемотка) и «ученика уже трогали»
+      chat: [], story: '', chat_t: 0,   // последние реплики и «дневник» прошлого: переживают смену модели и перезапуск
     };
   };
   const migrate = st => {  // старые сохранения без полей памяти
     const now = Date.now();
+    if (!Array.isArray(st.chat)) st.chat = [];
+    if (typeof st.story !== 'string') st.story = '';
+    if (st.chat_t === undefined) st.chat_t = 0;
     if (st.epoch === undefined) st.epoch = 0;
     if (st.touched === undefined) st.touched = (st.log && st.log.length > 0) || st.turns > 0;
     if (st.turns === undefined) st.turns = 0;
@@ -143,32 +148,48 @@ const FORGOTTEN = 0.2;
   // Ключ API и настройки остаются только в localStorage этого устройства.
   const TG = window.Telegram && window.Telegram.WebApp;
   const CS = TG && TG.initData ? TG.CloudStorage : null;
+  // Ограничения CloudStorage: значение до 4096 символов (возможно, считается в байтах), ключ только [A-Za-z0-9_-].
+  // Поэтому данные пишутся чистым ASCII (кириллица -> \uXXXX): символы и байты совпадают, лимит нельзя превысить.
+  // Версия данных — отдельные ключи v<время>_<i>; указатель 'ptr' пишется ПОСЛЕДНИМ, так что читатель всегда видит
+  // целую версию (старую или новую), а не смесь кусков.
   const CHUNK = 3000;
-  const csGet = keys => new Promise(res => CS.getItems(keys, (e, v) => res(e ? {} : v || {})));
-  const csSet = obj => new Promise(res => CS.setItems(obj, () => res()));
-  const csDel = keys => new Promise(res => CS.removeItems(keys, () => res()));
-  let cloudChunks = 0;
-  async function loadCloud(retry = true) {
+  const csErr = e => new Error('Облако Telegram: ' + (typeof e === 'string' ? e : (e && e.message) || JSON.stringify(e)));
+  const csGet = keys => new Promise((res, rej) => CS.getItems(keys, (e, v) => e ? rej(csErr(e)) : res(v || {})));
+  const csSet = obj => new Promise((res, rej) => CS.setItems(obj, (e, ok) => e ? rej(csErr(e)) : res(ok)));
+  const csDel = keys => new Promise((res, rej) => keys.length ? CS.removeItems(keys, e => e ? rej(csErr(e)) : res()) : res());
+  const asciiJson = o => JSON.stringify(o).replace(/[\u0080-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  const chunkKeys = (v, n) => Array.from({ length: n }, (_, i) => `v${v}_${i}`);
+  const dataError = msg => Object.assign(new Error(msg), { dataError: true });   // данные в облаке повреждены (а не сбой связи)
+  let cloudPtr = null, legacyCleaned = false;
+  async function loadCloud() {
+    const ptr = (await csGet(['ptr'])).ptr;
+    if (ptr) {
+      let p; try { p = JSON.parse(ptr); } catch { throw dataError('указатель данных повреждён'); }
+      cloudPtr = p;
+      const keys = chunkKeys(p.v, p.n), vals = await csGet(keys);
+      const missing = keys.filter(k => !vals[k]);
+      if (missing.length) throw dataError(`в облаке не хватает частей данных (${missing.length} из ${p.n})`);
+      try { return JSON.parse(keys.map(k => vals[k]).join('')); } catch { throw dataError('данные в облаке не читаются'); }
+    }
+    // прежний формат (st_0…): читаем один раз для переезда; рваные старые данные игнорируем
     const n = parseInt((await csGet(['st_n'])).st_n || '0', 10);
     if (!n) return null;
-    const keys = Array.from({ length: n }, (_, i) => 'st_' + i);
-    const vals = await csGet(keys);
-    cloudChunks = n;
-    try { return JSON.parse(keys.map(k => vals[k] || '').join('')); }
-    catch (e) {  // другое устройство как раз писало: читаем ещё раз
-      if (!retry) throw e;
-      await new Promise(r => setTimeout(r, 800));
-      return loadCloud(false);
-    }
+    const keys = Array.from({ length: n }, (_, i) => 'st_' + i), vals = await csGet(keys);
+    try { return JSON.parse(keys.map(k => vals[k] || '').join('')); } catch { return null; }
   }
   async function saveCloud() {
-    const s = JSON.stringify(state), obj = {};
-    const n = Math.ceil(s.length / CHUNK);
-    for (let i = 0; i < n; i++) obj['st_' + i] = s.slice(i * CHUNK, (i + 1) * CHUNK);
-    obj.st_n = String(n);   // счётчик пишется вместе с кусками; читатель при сбое повторяет чтение
-    await csSet(obj);
-    if (cloudChunks > n) await csDel(Array.from({ length: cloudChunks - n }, (_, i) => 'st_' + (n + i)));
-    cloudChunks = n;
+    const s = asciiJson(state), n = Math.ceil(s.length / CHUNK), v = Date.now().toString(36);
+    const keys = chunkKeys(v, n);
+    for (let i = 0; i < n; i += 10) {   // небольшими порциями
+      const obj = {};
+      for (let j = i; j < Math.min(n, i + 10); j++) obj[keys[j]] = s.slice(j * CHUNK, (j + 1) * CHUNK);
+      await csSet(obj);
+    }
+    await csSet({ ptr: JSON.stringify({ v, n }) });
+    const old = cloudPtr; cloudPtr = { v, n };
+    const del = old ? chunkKeys(old.v, old.n) : [];
+    if (!legacyCleaned) { del.push('st_n', ...Array.from({ length: 60 }, (_, i) => 'st_' + i)); legacyCleaned = true; }
+    try { await csDel(del); } catch (e) { console.warn('cleanup:', e); }   // уборка не критична
   }
 
   // Слияние двух устройств: по каждому слову/правилу побеждает запись с более поздним повторением (last).
@@ -194,6 +215,8 @@ const FORGOTTEN = 0.2;
     out.log = [...seen.values()].sort((p, q) => (p.t || 0) - (q.t || 0)).slice(-200);
     out.turns = Math.max(a.turns | 0, b.turns | 0);
     out.last_ask = Math.max(a.last_ask | 0, b.last_ask | 0);
+    const newer = (a.chat_t | 0) >= (b.chat_t | 0) ? a : b;   // диалог и «дневник» берём у того, где разговор был позже
+    out.chat = newer.chat || []; out.story = newer.story || ''; out.chat_t = newer.chat_t | 0;
     return out;
   }
 
@@ -202,7 +225,9 @@ const FORGOTTEN = 0.2;
   async function syncNow() {   // подтянуть облако, слить с локальным, записать назад
     if (!CS) return false;
     try {
-      const c = await loadCloud();
+      let c = null;
+      try { c = await loadCloud(); }
+      catch (e) { if (!e.dataError) throw e; console.warn('облако повреждено, перезаписываю локальным:', e.message); }   // самолечение
       if (c && c.vocab) state = migrate(mergeStates(state, migrate(c)));
       if (state.log.length > 200) state.log = state.log.slice(-200);
       save(LS_STATE, state);
@@ -211,10 +236,13 @@ const FORGOTTEN = 0.2;
     } catch (e) {
       syncInfo = { enabled: true, at: syncInfo.at, ok: false, error: String((e && e.message) || e) };
     }
+    lastSyncEnd = Date.now();
     window.dispatchEvent(new Event('learner-sync'));
     return syncInfo.ok;
   }
-  const queueSync = () => (syncChain = syncChain.then(syncNow));
+  let lastSyncEnd = 0;
+  // force=false: лишние события (focus + visibilitychange приходят вместе) не должны сыпать запросами в облако
+  const queueSync = (force = true) => (syncChain = syncChain.then(() => (force || Date.now() - lastSyncEnd > 8000) ? syncNow() : null));
   const persist = () => {
     state.touched = true;
     if (state.log.length > 200) state.log = state.log.slice(-200);
@@ -242,9 +270,9 @@ const FORGOTTEN = 0.2;
   }
   const ready = CS ? (async () => { await adoptCfg(); await queueSync(); })() : Promise.resolve();
   if (CS) {   // вернулись в приложение — подтянуть прогресс с другого устройства
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) queueSync(); });
-    window.addEventListener('focus', queueSync);
-    setInterval(() => { if (!document.hidden) queueSync(); }, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) queueSync(false); });
+    window.addEventListener('focus', () => queueSync(false));
+    setInterval(() => { if (!document.hidden) queueSync(false); }, 120000);
   }
 
   // ---------- вызов модели напрямую из браузера ----------
@@ -270,19 +298,57 @@ const FORGOTTEN = 0.2;
     const txt = await res.text();
     if (!res.ok) throw new Error(`Ошибка API ${res.status}: ${txt.slice(0, 300)}`);
     const j = JSON.parse(txt);
+    const oc = j.choices?.[0]?.message?.content;   // у некоторых провайдеров content — массив частей
     const out = settings.provider === 'openai'
-      ? (j.choices?.[0]?.message?.content || '')
+      ? (Array.isArray(oc) ? oc.map(p => (typeof p === 'string' ? p : p.text || '')).join('') : (oc || ''))
       : (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
     return out.replace(/<think>[\s\S]*?<\/think>/g, '');   // «думающие» модели иногда оставляют размышления в тексте
   }
 
-  const parseJson = t => {
-    const m = t.match(/\{[\s\S]*\}/);
-    if (!m) throw new Error('модель не вернула JSON');
-    return JSON.parse(m[0]);
-  };
+  // Запрос JSON. Некоторые модели (особенно «думающие») иногда отвечают обычным текстом: тогда один раз
+  // повторяем с жёстким требованием формата, а при втором сбое показываем начало ответа, чтобы было ясно, что случилось.
+  async function askJson(system, msgs, array = false) {
+    let raw = '';
+    for (let i = 0; i < 2; i++) {
+      const last = msgs[msgs.length - 1];
+      const m = i === 0 ? msgs : [...msgs.slice(0, -1), { ...last, content: last.content +
+        `\n\nВАЖНО: ответь ТОЛЬКО одним JSON ${array ? '(массивом)' : '(объектом)'}, без пояснений, рассуждений и markdown.` }];
+      raw = await complete(system, m);
+      const mm = raw.match(array ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/);
+      if (mm) { try { return JSON.parse(mm[0]); } catch { /* повторим */ } }
+    }
+    throw Object.assign(new Error('Модель не вернула JSON. Начало её ответа: «' + raw.trim().slice(0, 160) + '»'), { notJson: true });
+  }
+  const parseJson = async (system, msgs) => askJson(system, msgs);
 
   // ---------- записная книжка ----------
+  // ---------- память о прошлом: диалог и «дневник» хранятся в состоянии, а не в оперативной памяти страницы ----------
+  // Они попадают в каждый запрос, поэтому ЛЮБАЯ модель, в том числе только что подключённая, продолжает ту же «жизнь».
+  const CHAT_MAX = 16, CHAT_KEEP = 8;
+  function memoryText() {
+    const learned = state.log.slice(-8).filter(e => e.item).map(e =>
+      `  • ${e.item}${e.ru ? ' — ' + e.ru : ''} (способ: ${e.strategy || '?'}): ${(e.thought || '').slice(0, 110)}`).join('\n') || '  пока ничего';
+    const story = (state.story || '').trim() || 'Вы с собеседником только начали заниматься.';
+    return `ПАМЯТЬ О ПРОШЛОМ (это твоя жизнь, ты помнишь это сам; в начале запроса — последние реплики разговора)\nДневник: ${story}\nНедавно учил и как:\n${learned}`;
+  }
+  const recentText = () => state.chat.length
+    ? 'ПОСЛЕДНИЕ РЕПЛИКИ РАЗГОВОРА:\n' + state.chat.slice(-6).map(m => `  ${m.role === 'user' ? 'Собеседник' : 'Я'}: ${m.content.slice(0, 200)}`).join('\n') + '\n\n' : '';
+  async function summarizeOld() {   // старые реплики сворачиваются в «дневник»; сбой не ломает разговор
+    let n = state.chat.length - CHAT_KEEP; n -= n % 2;   // чат всегда начинается с реплики собеседника
+    if (n <= 0) return;
+    const old = state.chat.slice(0, n);
+    const transcript = old.map(m => `${m.role === 'user' ? 'Собеседник' : 'Я'}: ${m.content}`).join('\n');
+    const text = String(await complete(STORY_SYSTEM, [{ role: 'user', content:
+      `ПРОШЛАЯ ЗАПИСЬ:\n${state.story || '(пусто)'}\n\nНОВЫЕ РЕПЛИКИ:\n${transcript}` }], undefined, 1200)).trim();
+    if (text && state.chat[0] === old[0]) { state.story = text.slice(0, 1500); state.chat.splice(0, n); }
+  }
+  function remember(user, assistant) {
+    state.chat.push({ role: 'user', content: user.slice(0, 400) }, { role: 'assistant', content: assistant });
+    state.chat_t = Date.now();
+    if (state.chat.length > CHAT_MAX) summarizeOld().then(persist).catch(() => {});
+    if (state.chat.length > CHAT_MAX * 2) state.chat.splice(0, state.chat.length - CHAT_MAX);   // страховка
+  }
+
   function notebookText() {
     const b = { known: [], fading: [], shaky: [], forgotten: [] };
     for (const [l, v] of Object.entries(state.vocab)) {
@@ -294,7 +360,7 @@ const FORGOTTEN = 0.2;
       const g = geff(r);
       return `  ${r}: ${g.toFixed(2)}${raw >= THRESHOLD && g < THRESHOLD ? ' — подзабыл' : ''}`;
     }).join('\n');
-    return 'ЗАПИСНАЯ КНИЖКА УЧЕНИКА\n' +
+    return memoryText() + '\n\n' + 'ЗАПИСНАЯ КНИЖКА УЧЕНИКА\n' +
       `Уверенно известные слова: ${j(b.known)}\n` +
       `Забываешь (раньше знал, вспоминается с трудом): ${j(b.fading)}\n` +
       `Шаткие (недавно выучены): ${j(b.shaky)}\n` +
@@ -322,11 +388,11 @@ const FORGOTTEN = 0.2;
     }
     if (dictionary?.length) content += '\n\nРЕЗУЛЬТАТ ПОИСКА В СЛОВАРЕ:\n' + JSON.stringify(dictionary, null, 1);
     if (feedback) content += `\n\nПРОВЕРКА НЕ ПРОЙДЕНА, ИСПРАВЬ reply_de:\n${feedback}`;
-    return parseJson(await complete(SYSTEM, [...history, { role: 'user', content }]));
+    return askJson(SYSTEM, [...state.chat, { role: 'user', content }]);
   }
 
   async function dictionaryLookup(term) {
-    try { return parseJson(await complete(DICT_SYSTEM, [{ role: 'user', content: term }])); }
+    try { return await askJson(DICT_SYSTEM, [{ role: 'user', content: term }]); }
     catch (e) { if (/API|ключ/.test(e.message)) throw e; return { lemma: '', note: 'не найдено' }; }
   }
 
@@ -425,8 +491,8 @@ const FORGOTTEN = 0.2;
       `выучил: ${s.learned ? 'да' : 'нет'}; сила ${s.strength}; успеет забыться (пора повторить) через ${s.next_days} дн.`).join('\n');
     const how = (reply.learning || []).map(i => `  ${i.item}: способ ${i.strategy}; мысль: ${i.thought}`).join('\n');
     try {
-      return parseJson(await complete(REFLECT_SYSTEM, [{ role: 'user', content:
-        `ЧТО ПОЛУЧИЛОСЬ (ты старался: ${settings.effort} попыток на слово):\n${facts}\n\nКАК ТЫ УЧИЛ:\n${how}\n${extra}` }]));
+      return await askJson(REFLECT_SYSTEM, [{ role: 'user', content:
+        `ЧТО ПОЛУЧИЛОСЬ (ты старался: ${settings.effort} попыток на слово):\n${facts}\n\nКАК ТЫ УЧИЛ:\n${how}\n${extra}` }]);
     } catch (e) { if (/API|ключ/.test(e.message)) throw e; return null; }
   }
 
@@ -489,20 +555,15 @@ const FORGOTTEN = 0.2;
     const sessions = applyLearning(reply);
     reply.study = { effort: settings.effort, sessions, reflection: await reflect(sessions, reply) };
     state.turns++;
+    remember(msg, reply.reply_de);
     persist();
     notifyTelegram(reply);
-    history.push({ role: 'user', content: msg }, { role: 'assistant', content: reply.reply_de });
     return { reply, tokens, warning };
   }
 
   // ---------- режим чтения: «понимаешь ли ты этот текст?» ----------
   // Что ученик знает, решает КОД: нейтральный лемматизатор разбирает текст, слова сверяются с записной книжкой.
-  const jsonCall = async (system, content, array) => {
-    const t = await complete(system, [{ role: 'user', content }]);
-    const m = t.match(array ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/);
-    if (!m) throw new Error('модель не вернула JSON');
-    return JSON.parse(m[0]);
-  };
+  const jsonCall = (system, content, array) => askJson(system, [{ role: 'user', content }], array);
   const lemmaStatus = (lemma, fresh) => {
     if (fresh.has(lemma.toLowerCase())) return 'new';
     const k = lemmaOf(lemma);
@@ -519,7 +580,11 @@ const FORGOTTEN = 0.2;
   async function readTurn(msg) {
     const text = msg.slice(0, 6000), none = new Set();
     const rowsBy = {};
-    for (const w of (await jsonCall(LEMMA_SYSTEM, text)).words || []) {
+    let words;
+    try { words = (await jsonCall(LEMMA_SYSTEM, text)).words || []; }
+    catch (e) { if (e.notJson) return turn(msg, 'chat'); throw e; }   // не текст для чтения (например, вопрос) — обычный диалог
+    if (!words.length) return turn(msg, 'chat');
+    for (const w of words) {
       const lemma = (w.lemma || '').trim(); if (!lemma) continue;
       const r = rowsBy[lemma] = rowsBy[lemma] || { lemma, surface: w.surface || lemma, count: 0 };
       r.count += parseInt(w.count || 1, 10) || 1;
@@ -530,7 +595,7 @@ const FORGOTTEN = 0.2;
     const candidates = table.filter(r => ['unknown', 'forgot', 'partial'].includes(r.before));
     const facts = `ЧТО ТЫ ЗНАЕШЬ ИЗ ЭТОГО ТЕКСТА: значимых слов ${table.length}; понимаешь примерно ${Math.floor(covBefore * 100)}% ` +
       `(итог: ${verdict}; yes>=90%, partly>=60%).\n` + table.map(r => `  ${r.lemma} ×${r.count} — ${r.before}`).join('\n');
-    const think = await jsonCall(READ_THINK_SYSTEM, `${notebookText()}\n\n${facts}\n\nСООБЩЕНИЕ СОБЕСЕДНИКА (текст и, возможно, вопрос):\n${text}`);
+    const think = await jsonCall(READ_THINK_SYSTEM, `${notebookText()}\n\n${recentText()}${facts}\n\nСООБЩЕНИЕ СОБЕСЕДНИКА (текст и, возможно, вопрос):\n${text}`);
     const names = new Set(candidates.map(r => r.lemma));
     const guesses = (think.guesses || []).filter(g => names.has(g.lemma)).slice(0, 12);
     let lookup = (think.lookup || []).filter(l => names.has(l));
@@ -544,7 +609,7 @@ const FORGOTTEN = 0.2;
       } catch (e) { if (/API|ключ/.test(e.message)) throw e; }
     }
     const fresh = new Set(dictionary.flatMap(d => [d.lemma.toLowerCase(), ...(d.article ? [d.article.toLowerCase()] : [])]));
-    const base = `${notebookText()}\n\n${facts}\n\nТВОИ ПРЕДЫДУЩИЕ МЫСЛИ:\n${JSON.stringify(think)}\n\n` +
+    const base = `${notebookText()}\n\n${recentText()}${facts}\n\nТВОИ ПРЕДЫДУЩИЕ МЫСЛИ:\n${JSON.stringify(think)}\n\n` +
       `СЛОВАРНЫЕ СТАТЬИ:\n${JSON.stringify(dictionary, null, 1)}\n\nСООБЩЕНИЕ СОБЕСЕДНИКА:\n${text}`;
     let reply = null, feedback = null, warning = null;
     for (let i = 0; i <= MAX_RETRIES; i++) {
@@ -580,8 +645,8 @@ const FORGOTTEN = 0.2;
       coverage_before: covBefore, coverage_after: covAfter, verdict, verdict_ru: think.verdict_ru || '',
       gist_before_ru: think.gist_before_ru || '', after_ru: reply.after_ru || '', unclear: reply.unclear || [],
       still_unknown: still.slice(0, 15), guesses };
+    remember(msg, reply.reply_de);
     persist(); notifyTelegram(reply);
-    history.push({ role: 'user', content: msg.slice(0, 500) }, { role: 'assistant', content: reply.reply_de });
     return { reply, tokens, warning };
   }
 
