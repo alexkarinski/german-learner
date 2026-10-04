@@ -337,7 +337,7 @@ api.state().then(renderState);
 
 // ---- настройки подключения ----
 const PRESETS={claude:['anthropic','','claude-sonnet-5-5'],gemini:['openai','https://generativelanguage.googleapis.com/v1beta/openai/','gemini-2.5-flash'],
-  intern:['openai','https://discovery-api.intern-ai.org.cn/v1',''],custom:['openai','','']};
+  intern:['openai','https://discovery-api.intern-ai.org.cn/v1','deepseek-v4-flash-0731'],custom:['openai','','']};
 async function openSettings(){
   const s=await api.getSettings();
   $('#webnote').hidden=!window.api; $('#webonly').hidden=!window.api;
@@ -407,8 +407,8 @@ function showEff(){
 ['#s_provider','#s_url'].forEach(s=>{$(s).addEventListener('input',showEff);$(s).addEventListener('change',showEff)});
 $('#preset').addEventListener('change',showEff);
 // типичные названия для автоподбора, когда провайдер не отдаёт список моделей браузеру
-const MODEL_GUESSES=['DeepSeek-V4-Flash','deepseek-v4-flash','deepseek-v4','DeepSeek-V4','deepseek-chat','deepseek-v3',
-  'intern-s1','Intern-S1','intern-s1-pro','intern-latest','qwen3-max','qwen-plus','kimi-k2','glm-4.6'];
+const MODEL_GUESSES=['deepseek-v4-flash-0731','glm-5.3','kimi-k2.6','qwen3.8-27b','deepseek-v4-pro-0813','minimax-m3',
+  'intern-s2','Atria-Dawn-Preview','Agents-A1','deepseek-v4-flash-vision','deepseek-v4-flash','claude-sonnet-5-5'];
 $('#s_list').onclick=async()=>{
   const e=$('#serr'), box=$('#s_models'); e.style.color=''; e.textContent='Запрашиваю список моделей…'; box.innerHTML='';
   await api.saveSettings(formSettings());

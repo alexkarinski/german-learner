@@ -251,7 +251,8 @@ const FORGOTTEN = 0.2;
   const effectiveUrl = () => settings.provider === 'openai'
     ? (settings.base_url || 'https://api.openai.com/v1').replace(/\/$/, '') + '/chat/completions'
     : (settings.base_url || 'https://api.anthropic.com').replace(/\/$/, '') + '/v1/messages';
-  async function complete(system, msgs, modelOverride, maxTokens = 2000) {
+  // 4096: модели с «размышлением» тратят часть лимита на мысли, и при 2000 JSON-ответ мог обрываться
+  async function complete(system, msgs, modelOverride, maxTokens = 4096) {
     const key = settings.api_key;
     if (!key) throw new Error('Не задан API-ключ. Откройте ⚙ Настройки.');
     let url, headers, body;
@@ -269,9 +270,10 @@ const FORGOTTEN = 0.2;
     const txt = await res.text();
     if (!res.ok) throw new Error(`Ошибка API ${res.status}: ${txt.slice(0, 300)}`);
     const j = JSON.parse(txt);
-    return settings.provider === 'openai'
+    const out = settings.provider === 'openai'
       ? (j.choices?.[0]?.message?.content || '')
       : (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    return out.replace(/<think>[\s\S]*?<\/think>/g, '');   // «думающие» модели иногда оставляют размышления в тексте
   }
 
   const parseJson = t => {
