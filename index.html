@@ -406,10 +406,25 @@ function showEff(){
 }
 ['#s_provider','#s_url'].forEach(s=>{$(s).addEventListener('input',showEff);$(s).addEventListener('change',showEff)});
 $('#preset').addEventListener('change',showEff);
+// типичные названия для автоподбора, когда провайдер не отдаёт список моделей браузеру
+const MODEL_GUESSES=['DeepSeek-V4-Flash','deepseek-v4-flash','deepseek-v4','DeepSeek-V4','deepseek-chat','deepseek-v3',
+  'intern-s1','Intern-S1','intern-s1-pro','intern-latest','qwen3-max','qwen-plus','kimi-k2','glm-4.6'];
 $('#s_list').onclick=async()=>{
   const e=$('#serr'), box=$('#s_models'); e.style.color=''; e.textContent='Запрашиваю список моделей…'; box.innerHTML='';
   await api.saveSettings(formSettings());
-  const r=await api.listModels();
+  let r=await api.listModels();
+  if(!r.ok&&/Failed to fetch|NetworkError|Load failed/i.test(r.error)){
+    // сервер не разрешает браузеру запрашивать список (CORS), но чат разрешает — подбираем название пробными запросами
+    e.textContent='Сервер не отдаёт список моделей браузеру (CORS). Подбираю подходящее название пробными запросами…';
+    const typed=$('#s_model').value.trim();
+    const p=await api.probeModels([...MODEL_GUESSES,...(typed&&/^[\x20-\x7e]+$/.test(typed)?[typed]:[])]);
+    if(!p.ok){e.style.color='var(--unk)';e.textContent='❌ Подбор остановился на «'+p.stoppedAt+'»: '+p.error;if(!(p.models||[]).length)return;r={ok:true,models:p.models}}
+    else if(!p.models.length){
+      e.style.color='var(--unk)';
+      e.innerHTML='Ни одно из типичных названий не подошло. Возьмите идентификатор модели на странице провайдера: вкладка «Список моделей» или «Документация» (в примере кода после <code>model=</code>).';
+      return;
+    } else r={ok:true,models:p.models};
+  }
   if(!r.ok){e.style.color='var(--unk)';e.textContent='❌ '+r.error+(r.url?' (адрес: '+r.url+')':'');return}
   if(!r.models.length){e.textContent='Сервер вернул пустой список. Скопируйте название модели из документации провайдера.';return}
   e.style.color='var(--known)'; e.textContent='Нажмите на модель, чтобы подставить её:';

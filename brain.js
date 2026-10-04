@@ -251,19 +251,19 @@ const FORGOTTEN = 0.2;
   const effectiveUrl = () => settings.provider === 'openai'
     ? (settings.base_url || 'https://api.openai.com/v1').replace(/\/$/, '') + '/chat/completions'
     : (settings.base_url || 'https://api.anthropic.com').replace(/\/$/, '') + '/v1/messages';
-  async function complete(system, msgs) {
+  async function complete(system, msgs, modelOverride, maxTokens = 2000) {
     const key = settings.api_key;
     if (!key) throw new Error('Не задан API-ключ. Откройте ⚙ Настройки.');
     let url, headers, body;
     if (settings.provider === 'openai') {
       url = effectiveUrl();
       headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key };
-      body = { model: settings.model, max_tokens: 2000, messages: [{ role: 'system', content: system }, ...msgs] };
+      body = { model: modelOverride || settings.model, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, ...msgs] };
     } else {
       url = effectiveUrl();
       headers = { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01',
                   'anthropic-dangerous-direct-browser-access': 'true' };
-      body = { model: settings.model, max_tokens: 2000, system, messages: msgs };
+      body = { model: modelOverride || settings.model, max_tokens: maxTokens, system, messages: msgs };
     }
     const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
     const txt = await res.text();
@@ -643,6 +643,20 @@ const FORGOTTEN = 0.2;
         const models = (j.data || j.models || []).map(m => (typeof m === 'string' ? m : m.id || m.name)).filter(Boolean);
         return { ok: true, url, models };
       } catch (e) { return { ok: false, url, error: String((e && e.message) || e) }; }
+    },
+    // Автоподбор: когда сервер не отдаёт список моделей браузеру (CORS), пробуем типичные названия крошечными запросами.
+    // Ошибки «нет такой модели» пропускаем; ошибки ключа/сети прерывают подбор.
+    probeModels: async candidates => {
+      const found = [];
+      for (const m of [...new Set(candidates)].filter(Boolean)) {
+        try { await complete('Ответь одним словом: ok', [{ role: 'user', content: 'ping' }], m, 5); found.push(m); }
+        catch (e) {
+          const msg = String((e && e.message) || e);
+          if (!/model_not_available|not supported|model.*(not found|invalid|missing)|unknown model/i.test(msg))
+            return { ok: false, error: msg, models: found, stoppedAt: m };
+        }
+      }
+      return { ok: true, models: found };
     },
     // Проверка подключения: крошечный запрос; показывает адрес и ответ, чтобы ошибки настройки были видны сразу
     testConnection: async () => {
