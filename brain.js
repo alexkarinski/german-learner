@@ -7,6 +7,7 @@ const READ_LEARN_SYSTEM = "Ты симулируешь ОДНОГО конкре
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты симулируешь ОДНОГО конкретного человека: носителя русского и украинского, который учит немецкий (уровень ~B1).\nТы не всезнающая модель и не учитель. Твой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
+const APP_VERSION = "2026-10-04 20:10";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
 /* Браузерная версия «мозга» ученика. Порт learner.py + server.py на JS.
@@ -147,7 +148,8 @@ const FORGOTTEN = 0.2;
   // ---------- Telegram CloudStorage: память ученика синхронизируется между устройствами ----------
   // Ключ API и настройки остаются только в localStorage этого устройства.
   const TG = window.Telegram && window.Telegram.WebApp;
-  const CS = TG && TG.initData ? TG.CloudStorage : null;
+  // Нужен API с setItem/getItems/removeItems (Bot API 6.9+): если в клиенте его нет — синхронизация выключена, а не падает с ошибкой
+  const CS = TG && TG.initData && TG.CloudStorage && TG.CloudStorage.setItem && TG.CloudStorage.getItems ? TG.CloudStorage : null;
   // Ограничения CloudStorage: значение до 4096 символов (возможно, считается в байтах), ключ только [A-Za-z0-9_-].
   // Поэтому данные пишутся чистым ASCII (кириллица -> \uXXXX): символы и байты совпадают, лимит нельзя превысить.
   // Версия данных — отдельные ключи v<время>_<i>; указатель 'ptr' пишется ПОСЛЕДНИМ, так что читатель всегда видит
@@ -155,7 +157,12 @@ const FORGOTTEN = 0.2;
   const CHUNK = 3000;
   const csErr = e => new Error('Облако Telegram: ' + (typeof e === 'string' ? e : (e && e.message) || JSON.stringify(e)));
   const csGet = keys => new Promise((res, rej) => CS.getItems(keys, (e, v) => e ? rej(csErr(e)) : res(v || {})));
-  const csSet = obj => new Promise((res, rej) => CS.setItems(obj, (e, ok) => e ? rej(csErr(e)) : res(ok)));
+  // В Telegram.WebApp.CloudStorage есть setItem (один ключ), getItems, removeItems, getKeys — метода setItems НЕТ.
+  const csSetOne = (k, v) => new Promise((res, rej) => CS.setItem(k, v, (e, ok) => e ? rej(csErr(e)) : res(ok)));
+  const csSet = async obj => {   // небольшими параллельными порциями, чтобы не упереться в ограничения частоты
+    const items = Object.entries(obj);
+    for (let i = 0; i < items.length; i += 4) await Promise.all(items.slice(i, i + 4).map(([k, v]) => csSetOne(k, v)));
+  };
   const csDel = keys => new Promise((res, rej) => keys.length ? CS.removeItems(keys, e => e ? rej(csErr(e)) : res()) : res());
   const asciiJson = o => JSON.stringify(o).replace(/[\u0080-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
   const chunkKeys = (v, n) => Array.from({ length: n }, (_, i) => `v${v}_${i}`);
@@ -664,7 +671,7 @@ const FORGOTTEN = 0.2;
     has_key: !!settings.api_key, effort: settings.effort, cloud: !!CS, cloud_key: settings.cloud_key !== false, has_tg: !!settings.tg_token, tg_chat: settings.tg_chat, error: settings.api_key ? null : 'Не задан API-ключ. Откройте ⚙ Настройки.', mock: false });
 
   window.api = {
-    web: true,
+    web: true, version: APP_VERSION,
     state: async () => { await ready; return snapshot(); },
     reset: async () => { await ready; const ep = (state.epoch | 0) + 1; state = newState(); state.epoch = ep; history = []; persist(); return snapshot(); },
     chat: async (msg, mode) => { await ready; const r = await turn(msg, mode); return { ...r, state: snapshot() }; },

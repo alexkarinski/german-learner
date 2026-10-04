@@ -155,6 +155,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   </div>
   <div id="webnote" class="note" hidden style="margin-top:8px">Ключ хранится только в этом браузере и отправляется напрямую провайдеру модели. Память ученика — тоже только в этом браузере.</div>
   <div id="serr"></div>
+  <div id="ver" class="note" style="margin-top:8px" hidden></div>
   <div class="row"><button type="button" id="s_cancel">Закрыть</button><button type="button" class="pri" id="s_save">Сохранить</button></div>
 </form></dialog>
 <main>
@@ -343,6 +344,7 @@ async function openSettings(){
   $('#webnote').hidden=!window.api; $('#webonly').hidden=!window.api;
   $('#s_tgtoken').value=''; $('#s_tgchat').value=s.tg_chat||'';
   $('#tghint').textContent=s.has_tg?'(сохранён; пусто = не менять)':'';
+  $('#ver').hidden=!(window.api&&api.version); if(window.api&&api.version)$('#ver').textContent='Версия приложения: '+api.version+' · '+location.host;
   $('#cloudrow').hidden=!s.cloud; $('#s_cloud').checked=s.cloud_key!==false; $('#s_test').hidden=!window.api;
   $('#s_provider').value=s.provider;$('#s_url').value=s.base_url;$('#s_model').value=s.model;$('#s_key').value='';
   showEff();
