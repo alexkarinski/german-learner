@@ -141,6 +141,31 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <button id="cfg">⚙ Настройки</button>
   <button id="reset">Сбросить память</button>
 </header>
+<dialog id="bookdlg"><div style="display:block">
+  <b>📚 Книга</b>
+  <div class="note" style="margin:6px 0">Загрузи книгу или учебник (PDF с текстом, EPUB, FB2, TXT), и мы пойдём по ней кусочками вместе. Сам файл остаётся на этом устройстве; тексты фрагментов, с которыми работаем, уходят твоей модели.</div>
+  <input type="file" id="b_file" accept=".pdf,.epub,.fb2,.txt,.md,.zip,application/pdf,application/epub+zip,text/plain" style="width:100%">
+  <div id="b_status" class="note" style="margin-top:6px"></div>
+  <div id="b_ctl" hidden>
+    <div style="margin-top:10px"><b id="b_title"></b></div>
+    <div class="bar" style="margin:6px 0"><i id="b_bar" style="width:0"></i></div>
+    <div class="note" id="b_pos"></div>
+    <div id="b_preview" class="sum" style="max-height:130px;overflow:auto;font-size:13px;margin-top:6px"></div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
+      <button type="button" class="mini" id="b_prev" style="margin:0">◀</button><button type="button" class="mini" id="b_next" style="margin:0">▶</button>
+      <span class="note">к фрагменту №</span><input id="b_go" type="number" min="1" style="width:70px;flex:none"><button type="button" class="mini" id="b_gobtn" style="margin:0">Перейти</button>
+    </div>
+    <div class="chips">
+      <button type="button" class="chip2" data-bk="read">📖 Читаем вместе</button>
+      <button type="button" class="chip2" data-bk="grammar">🧩 Разбор грамматики</button>
+      <button type="button" class="chip2" data-bk="task">🎯 Упражнение по фрагменту</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px"><input id="b_q" placeholder="Найти в книге: слово или тема" style="flex:1"><button type="button" class="mini" id="b_find" style="margin:0">Искать</button></div>
+    <div id="b_found"></div>
+    <button type="button" class="mini" id="b_remove" style="margin:10px 0 0 0">Убрать книгу с этого устройства</button>
+  </div>
+  <div class="row"><button type="button" id="b_close">Закрыть</button></div>
+</div></dialog>
 <dialog id="dlg"><form method="dialog" id="sf" style="display:block;padding:0;border:0;background:none">
   <b>Подключение к модели</b>
   <label>Готовый вариант</label>
@@ -214,6 +239,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <div style="margin-top:8px">Кнопки под чатом: <b>🎯 Задание</b> (Макс даёт задание для вас обоих), <b>💡 Объясни тему</b>, <b>✍ Проверь меня</b>, <b>🧩 Разбор текста</b>, <b>📖 Понимаешь?</b>. Для всех, кроме задания, сначала напиши текст в поле.</div></div></div>
     <div id="tools">
       <button type="button" id="taskbtn" title="Макс предложит задание для вас обоих: он сам его уже попробовал и покажет свой вариант после вашего">🎯 Задание</button>
+      <button type="button" id="bookbtn" title="Загрузить книгу или учебник (PDF, EPUB, FB2, TXT) и работать по ней вместе с Максом">📚 Книга</button>
       <button type="button" id="topicbtn" title="Напиши тему в поле (например: Dativ) — Макс разберётся и объяснит">💡 Объясни тему</button>
       <button type="button" id="checkbtn" title="Напиши в поле своё предложение по-немецки — Макс проверит">✍ Проверь меня</button>
       <button type="button" id="grambtn" title="Вставь в поле немецкий текст — Макс переведёт, найдёт, чему надо научиться, составит план и потренируется">🧩 Разбор текста</button>
@@ -234,7 +260,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
 const $=s=>document.querySelector(s);
 // в вебе (web/brain.js) window.api уже определён и работает прямо в браузере; в десктопе — запросы к локальному серверу
 const jfetch=async(u,body)=>{const r=await fetch(u,body===undefined?{}:{method:'POST',body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error);return d};
-const api=window.api||{state:()=>jfetch('/api/state'),reset:()=>jfetch('/api/reset',{}),chat:(m,mode)=>jfetch('/api/chat',{message:m,mode}),
+const api=window.api||{state:()=>jfetch('/api/state'),reset:()=>jfetch('/api/reset',{}),chat:(m,mode,extra)=>jfetch('/api/chat',{message:m,mode}),
   skip:d=>jfetch('/api/skip',{days:d}),
   getSettings:()=>jfetch('/api/settings'),saveSettings:o=>jfetch('/api/settings',o)};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -434,7 +460,7 @@ if(window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData){
 }
 window.addEventListener('learner-sync',()=>{ if(api.feed)api.feed().then(items=>{const fresh=items.filter(i=>!shown.has(i.id));if(fresh.length){fresh.forEach(renderFeedItem);}}); });
 
-async function send(m,mode){
+async function send(m,mode,extra){
   $('#in').value=''; document.querySelectorAll('#tools button,#go').forEach(b=>b.disabled=true);
   add('me',esc(m.length>600?m.slice(0,600)+'…':m));
   const reading=mode==='read'||(!mode&&(m.match(/[A-Za-zÄÖÜäöüß]+/g)||[]).length>=14);
@@ -443,7 +469,8 @@ async function send(m,mode){
   const wait=add('bot note',mode==='task'?'Макс придумывает задание и пробует его сам…':gram?'Разбираю грамматику: перевожу, ищу, чему надо научиться…':hasUrl?'Открываю ссылку и читаю статью…':reading?'Читаю текст, сверяюсь с записной книжкой…':'Ученик думает…');
   mood('think'); bubble(gram?'Так, давайте разберёмся, как это переводится и чему мне надо научиться…':hasUrl?'Открываю статью…':reading?'Читаю… Посмотрим, что я тут понимаю.':'Хм… (если не знаю слова — загляну в словарь)',true);
   try{
-    const d=await api.chat(m,mode);
+    const d=await api.chat(m,mode,extra);
+    if(extra&&extra.chunk!=null&&mode==='read'&&api.book)await api.book.markRead(extra.chunk,true);   // прочитали фрагмент — идём дальше
     wait.className='bot'; wait.innerHTML=botHtml(d); renderState(d.state);
     if(d.ids){shown.add(d.ids.user);shown.add(d.ids.bot)}
     const r=d.reply, g=r.reading;
@@ -462,6 +489,46 @@ async function send(m,mode){
 }
 $('#f').onsubmit=e=>{e.preventDefault();const m=$('#in').value.trim();if(m)send(m)};
 // кнопки действий работают с текстом из поля; если поле пустое — подсказываем, что написать
+// ---- книга ----
+if(!(window.api&&api.book))$('#bookbtn').hidden=true;
+async function bookRefresh(){
+  const b=await api.book.info(), ctl=$('#b_ctl'), st=$('#b_status');
+  st.style.color='';
+  if(!b){ctl.hidden=true;st.textContent='Книга пока не загружена.';return}
+  ctl.hidden=false; st.textContent='';
+  $('#b_title').textContent=b.title;
+  $('#b_bar').style.width=Math.round(b.read.length/b.total*100)+'%';
+  $('#b_pos').textContent=`Фрагмент ${b.pos+1} из ${b.total} · прочитано вместе: ${b.read.length}`;
+  $('#b_go').max=b.total; $('#b_go').value=b.pos+1;
+  if(!b.local){$('#b_preview').textContent='Файл этой книги не загружен на этом устройстве. Загрузи ту же книгу ещё раз выше, и мы продолжим с того же места.';document.querySelectorAll('[data-bk]').forEach(x=>x.disabled=true);return}
+  document.querySelectorAll('[data-bk]').forEach(x=>x.disabled=false);
+  try{const c=await api.book.chunk(b.pos);$('#b_preview').innerHTML='<b>'+esc(c.title)+'</b><br>'+esc(c.text.slice(0,600))+(c.text.length>600?'…':'')}catch(e){$('#b_preview').textContent=e.message}
+}
+$('#bookbtn').onclick=async()=>{$('#bookdlg').showModal();await bookRefresh()};
+$('#b_close').onclick=()=>$('#bookdlg').close();
+$('#b_file').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f)return;
+  const st=$('#b_status'); st.style.color=''; st.textContent='Читаю файл…';
+  try{await api.book.load(f,t=>{st.textContent=t}); await bookRefresh(); st.style.color='var(--known)'; st.textContent='Книга загружена. Выбери, что делаем с фрагментом.'}
+  catch(err){st.style.color='var(--unk)';st.textContent='❌ '+err.message}
+};
+$('#b_prev').onclick=async()=>{const b=await api.book.info();await api.book.setPos(b.pos-1);bookRefresh()};
+$('#b_next').onclick=async()=>{const b=await api.book.info();await api.book.setPos(b.pos+1);bookRefresh()};
+$('#b_gobtn').onclick=async()=>{const n=parseInt($('#b_go').value,10);if(n>0){await api.book.setPos(n-1);bookRefresh()}};
+$('#b_find').onclick=async()=>{
+  const q=$('#b_q').value.trim(); if(!q)return;
+  const r=await api.book.find(q);
+  $('#b_found').innerHTML=r.length?r.map(x=>`<div class="card" data-goto="${x.i}" style="cursor:pointer"><b>№${x.i+1}</b> <span class="note">${esc(x.title)} · совпадений: ${x.score}</span><div class="note">…${esc(x.snippet)}…</div></div>`).join(''):'<div class="note" style="margin-top:6px">Ничего не нашлось.</div>';
+};
+$('#b_found').addEventListener('click',async e=>{const c=e.target.closest('[data-goto]');if(c){await api.book.setPos(+c.dataset.goto);$('#b_found').innerHTML='';bookRefresh()}});
+$('#b_remove').onclick=async()=>{if(confirm('Убрать книгу с этого устройства? Место в книге забудется.')){await api.book.remove();bookRefresh()}};
+document.querySelectorAll('[data-bk]').forEach(btn=>btn.onclick=async()=>{
+  const kind=btn.dataset.bk, b=await api.book.info(); let c;
+  try{c=await api.book.chunk(b.pos)}catch(e){$('#b_status').textContent=e.message;return}
+  $('#bookdlg').close();
+  const what={read:'читаем вместе',grammar:'разбираем грамматику',task:'упражнение по фрагменту'}[kind];
+  await send(`📚 «${b.title}», ${c.title}: ${what}`,kind,{text:c.text,title:c.title,chunk:b.pos});
+});
 const needText=hint=>{ $('#in').focus(); toast(hint,4500) };
 $('#readbtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'read'):needText('Вставь в поле немецкий текст или ссылку на статью и нажми «Понимаешь?»')};
 $('#grambtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'grammar'):needText('Вставь в поле немецкий текст (1–5 предложений) и нажми «Разбор текста»')};

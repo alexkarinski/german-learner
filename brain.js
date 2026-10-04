@@ -7,7 +7,7 @@ const READ_LEARN_SYSTEM = "Ты — Макс, парень, носитель р�
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-05 00:46";
+const APP_VERSION = "2026-10-05 00:53";
 const READ_PERSONA = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\n";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
@@ -38,6 +38,7 @@ const FORGOTTEN = 0.2;
       plan: null,                        // последний план изучения (из разбора грамматики)
       task: null, mistakes: [], stats: { tasks: 0, ok: 0, partly: 0 },   // задание от Макса, наши недавние ошибки, счёт заданий
       topic: null,                                                          // последняя разобранная тема (фокус заданий)
+      book: null,                                                           // книга, по которой работаем: {id, title, total, pos, read[]}; сам файл — только на устройстве
     };
   };
   const migrate = st => {  // старые сохранения без полей памяти
@@ -50,6 +51,7 @@ const FORGOTTEN = 0.2;
     if (st.plan === undefined) st.plan = null;
     if (st.task === undefined) st.task = null;
     if (st.topic === undefined) st.topic = null;
+    if (st.book === undefined) st.book = null;
     if (!Array.isArray(st.mistakes)) st.mistakes = [];
     if (!st.stats) st.stats = { tasks: 0, ok: 0, partly: 0 };
     if (st.touched === undefined) st.touched = (st.log && st.log.length > 0) || st.turns > 0;
@@ -240,6 +242,9 @@ const FORGOTTEN = 0.2;
     out.mistakes = [...new Map([...(a.mistakes || []), ...(b.mistakes || [])].map(m => [`${m.t}|${m.user || m.wrong || ''}`, m])).values()].sort((p, q) => p.t - q.t).slice(-20);
     out.stats = (a.stats && b.stats && b.stats.tasks > a.stats.tasks) ? b.stats : (a.stats || b.stats);
     out.topic = !a.topic ? (b.topic || null) : !b.topic ? a.topic : (a.topic.t >= b.topic.t ? a.topic : b.topic);
+    out.book = !a.book ? (b.book || null) : !b.book ? a.book
+      : a.book.id === b.book.id ? { ...(a.book.t >= b.book.t ? a.book : b.book), read: [...new Set([...(a.book.read || []), ...(b.book.read || [])])] }
+      : (a.book.t >= b.book.t ? a.book : b.book);
     return out;
   }
 
@@ -430,7 +435,8 @@ const FORGOTTEN = 0.2;
       ? `\nМой план изучения (по тексту «${state.plan.about}…»): ` + state.plan.steps.map(s => `${s.step}) ${s.title}${s.when ? ' — ' + s.when : ''}`).join('; ') : '';
     const t = state.task, pend = t && !t.done ? `\nТы предложил(а) другу задание и ждёшь его ответа: «${t.task_ru} ${t.task_de || ''}»` : '';
     const mist = (state.mistakes || []).length ? '\nНаши недавние ошибки: ' + state.mistakes.slice(-4).map(m => `${m.wrong || m.user || ''} → ${m.right || m.correction || ''}`).join('; ') : '';
-    const st = state.stats && state.stats.tasks ? `\nЗаданий вместе: ${state.stats.tasks}, друг справился верно: ${state.stats.ok}.` : '';
+    const st = (state.stats && state.stats.tasks ? `\nЗаданий вместе: ${state.stats.tasks}, друг справился верно: ${state.stats.ok}.` : '') +
+      (state.book ? `\nМы вместе работаем по книге «${state.book.title}»: сейчас фрагмент ${state.book.pos + 1} из ${state.book.total}, прочитано ${state.book.read.length}.` : '');
     return `ПАМЯТЬ О ПРОШЛОМ (это ваша общая жизнь, ты помнишь это сам; в начале запроса — последние реплики разговора)\nДневник: ${story}\nНедавно учили и как:\n${learned}${plan}${mist}${st}${pend}`;
   }
   const recentText = () => state.chat.length
@@ -715,18 +721,20 @@ const FORGOTTEN = 0.2;
   const READ_HINT = /понима|розум|verstehst|прочит|статью|стат'ю/i;
   const isReading = msg => { const n = (msg.match(TOKEN) || []).length; return n >= 14 || (n >= 5 && READ_HINT.test(msg)); };
 
-  async function turn(msg, mode) {
+  async function turn(msg, mode, extra) {
+    const bookText = extra && extra.text;   // фрагмент книги, с которым работаем
     const url = (msg.match(/https?:\/\/[^\s)>\]]+/) || [])[0];
     if (url && settings.web_search !== false && mode !== 'chat') {   // ссылка на статью: открываем и читаем
       const rest = msg.replace(url, '').trim();
       const article = await fetchArticle(url);
       return readTurn(msg, `Источник: ${url}\n${rest ? 'Вопрос собеседника: ' + rest + '\n' : ''}\n${article}`);
     }
-    if (mode === 'task') return taskTurn();
+    if (bookText && mode === 'read') return readTurn(msg, `Источник: книга «${(state.book || {}).title || ''}»${extra.title ? ', ' + extra.title : ''}\n${bookText}`);
+    if (mode === 'task') return taskTurn(bookText);
     if (mode === 'topic' || (!mode && !url && isTopicAsk(msg))) return topicTurn(msg);
     if (mode === 'check' || (!mode && /^\s*(макс[,\s]+)?проверь(те)?(?=[\s:,—-]|$)/i.test(msg))) return checkTurn(msg);   // не \b: он не понимает кириллицу
     if (state.task && !state.task.done && mode !== 'chat' && mode !== 'grammar' && mode !== 'read' && !url && (mode === 'answer' || (!mode && looksLikeAnswer(msg) && !isGrammarAsk(msg)))) return answerTurn(msg);
-    if (mode === 'grammar' || (!mode && !url && isGrammarAsk(msg))) return grammarTurn(msg);
+    if (mode === 'grammar' || (!mode && !url && isGrammarAsk(msg))) return grammarTurn(msg, bookText);
     if (mode === 'read' || (!mode && isReading(msg))) return readTurn(msg);
     expose(msg);                      // знакомые слова в сообщении собеседника освежаются
     const review = dueReviews();      // что пора повторить (просьба ученика сама)
@@ -908,8 +916,8 @@ const FORGOTTEN = 0.2;
     return { s, b, learned: n >= 2 && oks[n - 1] && oks[n - 2] && s >= THRESHOLD };
   }
 
-  async function grammarTurn(msg) {
-    const text = msg.slice(0, 1800);
+  async function grammarTurn(msg, textOverride) {
+    const text = (textOverride || msg).slice(0, 2400);
     const analysis = await askJson(GRAM_ANALYZE_SYSTEM, [{ role: 'user', content:
       `Известные правила:\n${Object.keys(state.grammar).map(r => '- ' + r).join('\n')}\n\nТЕКСТ:\n${text}` }]);
     const sentences = (analysis.sentences || []).slice(0, 6);
@@ -1077,12 +1085,13 @@ const FORGOTTEN = 0.2;
   const mistakesText = () => (state.mistakes || []).length
     ? 'НАШИ НЕДАВНИЕ ОШИБКИ:\n' + state.mistakes.slice(-5).map(m => `  • ${m.wrong || m.user || ''} → ${m.right || m.correction || ''}${m.why ? ' (' + m.why + ')' : ''}`).join('\n') + '\n\n' : '';
 
-  async function taskTurn() {
+  async function taskTurn(bookText) {
     const f = pickFocus();
+    const bookPart = bookText ? `ФРАГМЕНТ КНИГИ «${(state.book || {}).title || ''}» (задание должно быть ПО НЕМУ: возьми из него упражнение, если оно там есть, или составь по его материалу; материал можно цитировать в task_de, в том числе с незнакомыми словами; тема задания — одна):\n${bookText.slice(0, 2400)}\n\n` : '';
     const focusText = `ФОКУС (что нам пора повторить или подтянуть):\n  слова: ${f.words.join(', ') || '—'}\n  правила: ${f.rules.join('; ') || '—'}\n\n`;
     let t = null, feedback = null;
     for (let i = 0; i <= MAX_RETRIES; i++) {
-      t = await askJson(TASK_MAKE_SYSTEM, [{ role: 'user', content: `${notebookText()}\n\n${recentText()}${focusText}${mistakesText()}` +
+      t = await askJson(TASK_MAKE_SYSTEM, [{ role: 'user', content: `${notebookText()}\n\n${recentText()}${bookPart}${focusText}${mistakesText()}` +
         (feedback ? `ПРОВЕРКА НЕ ПРОЙДЕНА, ИСПРАВЬ my_answer_de:\n${feedback}` : 'Придумай задание.') }]);
       const bad = violations({ reply_de: t.my_answer_de || '', reply_used: t.my_used || [] }, new Set());
       if (!bad.length) break;
@@ -1218,6 +1227,131 @@ const FORGOTTEN = 0.2;
     persist();
     return { reply, tokens: [], warning: null };
   }
+  // ---------- книга: загрузили файл — работаем по фрагментам вместе ----------
+  // Файл разбирается прямо в браузере и хранится на этом устройстве (IndexedDB). В облаке и на других устройствах — только
+  // место в книге (state.book): ту же книгу достаточно загрузить заново, и мы продолжим с того же фрагмента.
+  const BOOK_DB = 'learner_books_v1', PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js', JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+  const idbOpen = () => new Promise((res, rej) => { const r = indexedDB.open(BOOK_DB, 1); r.onupgradeneeded = () => r.result.createObjectStore('books', { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  async function idbDo(mode, fn) {
+    const db = await idbOpen();
+    return new Promise((res, rej) => { const tx = db.transaction('books', mode), req = fn(tx.objectStore('books')); tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error); });
+  }
+  const bookPut = b => idbDo('readwrite', s => s.put(b)), bookGet = id => idbDo('readonly', s => s.get(id)), bookDel = id => idbDo('readwrite', s => s.delete(id));
+  const scripts = {};
+  const loadScript = url => scripts[url] || (scripts[url] = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = url; s.onload = res; s.onerror = () => { delete scripts[url]; rej(new Error('Не удалось загрузить библиотеку для чтения файла (нет сети?)')); }; document.head.append(s);
+  }));
+  function decodeBytes(buf, hint) {
+    if (hint) { try { return new TextDecoder(hint).decode(buf); } catch { /* неизвестная кодировка — пробуем ниже */ } }
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch { return new TextDecoder('windows-1252').decode(buf); }
+  }
+  const blockText = el => {   // текст XHTML с переводами строк между абзацами
+    const c = el.cloneNode(true);
+    c.querySelectorAll('script,style').forEach(n => n.remove());
+    c.querySelectorAll('p,div,h1,h2,h3,h4,h5,h6,li,br,tr').forEach(n => n.append('\n'));
+    return (c.textContent || '').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n\n').trim();
+  };
+  async function pdfSections(buf, progress) {
+    await loadScript(PDFJS); window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise, out = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      const tc = await (await doc.getPage(p)).getTextContent();
+      let text = tc.items.map(i => i.str + (i.hasEOL ? ' ' : '')).join(' ').replace(/\s+/g, ' ');
+      text = text.replace(/(\p{L})-\s+(\p{Ll})/gu, '$1$2').trim();   // перенос слова «Aus- bildung» -> «Ausbildung»
+      if (text) out.push({ title: `стр. ${p}`, text });
+      if (progress && p % 5 === 0) progress(`Читаю страницы: ${p} из ${doc.numPages}…`);
+    }
+    return { sections: out, title: null };
+  }
+  async function epubSections(buf) {
+    await loadScript(JSZIP);
+    const zip = await window.JSZip.loadAsync(buf), parse = (s, t = 'application/xml') => new DOMParser().parseFromString(s, t);
+    const opfPath = parse(await zip.file('META-INF/container.xml').async('string')).querySelector('rootfile').getAttribute('full-path');
+    const opf = parse(await zip.file(opfPath).async('string')), base = opfPath.includes('/') ? opfPath.replace(/[^/]+$/, '') : '';
+    const manifest = {}; opf.querySelectorAll('manifest > item').forEach(i => { manifest[i.getAttribute('id')] = i.getAttribute('href'); });
+    const out = []; let n = 0;
+    for (const ref of opf.querySelectorAll('spine > itemref')) {
+      const href = manifest[ref.getAttribute('idref')]; if (!href) continue;
+      const f = zip.file(decodeURIComponent(base + href)) || zip.file(base + href); if (!f) continue;
+      const doc = parse(await f.async('string'), 'application/xhtml+xml'); const body = doc.querySelector('body') || doc.documentElement;
+      const text = blockText(body); if (text.length < 40) continue;
+      const h = body.querySelector('h1,h2,h3'); out.push({ title: (h && h.textContent.trim().slice(0, 60)) || `часть ${++n}`, text });
+    }
+    const t = opf.querySelector('metadata > *|title, title'); return { sections: out, title: t ? t.textContent.trim() : null };
+  }
+  function fb2Sections(xml) {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml'), out = [];
+    const title = (doc.querySelector('book-title') || {}).textContent;
+    const walk = (sec, path) => {
+      const t = ((sec.querySelector(':scope > title') || {}).textContent || '').replace(/\s+/g, ' ').trim() || path;
+      const paras = [...sec.children].filter(c => ['p', 'epigraph', 'poem', 'cite', 'subtitle'].includes(c.localName)).map(c => c.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      if (paras.length) out.push({ title: t.slice(0, 60), text: paras.join('\n\n') });
+      [...sec.children].filter(c => c.localName === 'section').forEach(s => walk(s, t));
+    };
+    doc.querySelectorAll('body > section').forEach(s => walk(s, ''));
+    if (!out.length) doc.querySelectorAll('body').forEach(b => { const t = b.textContent.replace(/\s+/g, ' ').trim(); if (t) out.push({ title: 'текст', text: t }); });
+    return { sections: out, title: title ? title.trim() : null };
+  }
+  function chunkify(sections, target = 2200) {   // фрагменты ~2200 символов, по границам абзацев и предложений
+    const chunks = []; let buf = '', first = null, last = null;
+    const flush = () => { if (buf.trim().length > 60) chunks.push({ i: chunks.length, title: first === last ? first : `${first} – ${last}`, text: buf.trim() }); buf = ''; first = last = null; };
+    for (const s of sections) {
+      const paras = s.text.split(/\n+/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      for (const p of paras) {
+        const parts = p.length > target * 1.2 ? (p.match(/[^.!?…]+[.!?…]+["»“”)]*\s*|[^.!?…]+$/g) || [p]) : [p];
+        for (const q of parts) {
+          if (buf.length + q.length > target && buf.length > 500) flush();
+          if (!first) first = s.title; last = s.title; buf += q.trim() + '\n';
+        }
+      }
+    }
+    flush(); return chunks;
+  }
+  async function parseBook(file, progress) {
+    const buf = await file.arrayBuffer(), name = file.name.toLowerCase();
+    let r;
+    if (name.endsWith('.pdf')) r = await pdfSections(buf, progress);
+    else if (name.endsWith('.epub')) r = await epubSections(buf);
+    else if (name.endsWith('.fb2')) { const head = decodeBytes(buf.slice(0, 200), 'latin1'); const enc = (head.match(/encoding=["']([\w-]+)["']/i) || [])[1]; r = fb2Sections(decodeBytes(buf, enc)); }
+    else if (name.endsWith('.zip')) {   // fb2.zip
+      await loadScript(JSZIP); const zip = await window.JSZip.loadAsync(buf), f = Object.values(zip.files).find(x => /\.fb2$/i.test(x.name));
+      if (!f) throw new Error('В архиве не нашлось файла .fb2'); const b = await f.async('arraybuffer'); const head = decodeBytes(b.slice(0, 200), 'latin1');
+      r = fb2Sections(decodeBytes(b, (head.match(/encoding=["']([\w-]+)["']/i) || [])[1]));
+    } else { const t = decodeBytes(buf); r = { sections: [{ title: 'текст', text: t }], title: null }; }
+    const chunks = chunkify(r.sections);
+    if (chunks.length === 0 || chunks.reduce((a, c) => a + c.text.length, 0) < 300)
+      throw new Error('В файле почти нет текста. Если это PDF-скан (картинки страниц), его нельзя прочитать без распознавания; нужен PDF с текстом, EPUB, FB2 или TXT.');
+    return { title: (r.title || file.name.replace(/\.[^.]+$/, '')).slice(0, 80), chunks };
+  }
+  const bookApi = {
+    info: async () => { await ready; const b = state.book; if (!b) return null; let local = false; try { local = !!(await bookGet(b.id)); } catch { /* IndexedDB недоступен */ } return { ...b, local }; },
+    load: async (file, progress) => {
+      await ready;
+      const id = `${file.name}|${file.size}`, { title, chunks } = await parseBook(file, progress);
+      await bookPut({ id, title, chunks, added: Date.now() });
+      const old = state.book && state.book.id === id ? state.book : null;   // та же книга — продолжаем с сохранённого места
+      state.book = { id, title, total: chunks.length, pos: old ? Math.min(old.pos, chunks.length - 1) : 0, read: old ? old.read : [], t: Date.now() };
+      persist(); return { ...state.book, local: true };
+    },
+    chunk: async i => { const b = state.book && await bookGet(state.book.id); if (!b) throw new Error('Файл этой книги не загружен на этом устройстве. Загрузи ту же книгу ещё раз: место в книге сохранено.'); return b.chunks[Math.max(0, Math.min(b.chunks.length - 1, i))]; },
+    setPos: async i => { if (!state.book) return null; state.book.pos = Math.max(0, Math.min(state.book.total - 1, i | 0)); state.book.t = Date.now(); persist(); return { ...state.book }; },
+    markRead: async (i, advance) => {
+      if (!state.book) return null;
+      if (!state.book.read.includes(i)) state.book.read.push(i);
+      if (advance) state.book.pos = Math.min(state.book.total - 1, i + 1);
+      state.book.t = Date.now(); persist(); return { ...state.book };
+    },
+    find: async q => {
+      const b = state.book && await bookGet(state.book.id); if (!b) return [];
+      const terms = q.toLowerCase().split(/[^\p{L}]+/u).filter(w => w.length >= 3);
+      if (!terms.length) return [];
+      return b.chunks.map(c => { const low = c.text.toLowerCase(); const score = terms.reduce((a, t) => a + (low.split(t).length - 1), 0); const at = low.indexOf(terms[0]);
+        return { i: c.i, title: c.title, score, snippet: at >= 0 ? c.text.slice(Math.max(0, at - 50), at + 110).replace(/\s+/g, ' ') : '' }; })
+        .filter(x => x.score > 0).sort((a, b2) => b2.score - a.score).slice(0, 6);
+    },
+    remove: async () => { if (state.book) { try { await bookDel(state.book.id); } catch { /* ничего */ } } state.book = null; persist(); return true; },
+  };
   const nudge = () => {
     const t = state.task;
     if (t && !t.done) return `Ты не ответил на моё задание 🙂 Жми на него выше — или попроси другое (🎯).`;
@@ -1252,8 +1386,9 @@ const FORGOTTEN = 0.2;
     skipTask: async () => { await ready; if (state.task) { state.task.done = true; persist(); } return true; },
     feed: async () => { await ready; return feed.filter(i => (i.e | 0) === (state.fepoch | 0)); },
     clearFeed: async () => { feed = []; save(LS_FEED, feed); if (CS) { clearTimeout(syncTimer); syncTimer = setTimeout(queueSync, 300); } return true; },
-    chat: async (msg, mode) => {
-      await ready; const r = await turn(msg, mode);
+    book: bookApi,
+    chat: async (msg, mode, extra) => {
+      await ready; const r = await turn(msg, mode, extra);
       const d = { ...r, state: snapshot() };
       d.ids = feedAdd(msg, r);   // переписка и карточка результата сохраняются
       return d;
