@@ -24,7 +24,7 @@ main{flex:1;display:grid;grid-template-columns:1fr 340px;min-height:0}
 #nb{display:none}
 @media(max-width:800px){main{grid-template-columns:1fr}aside{display:none}
   #nb{display:inline-block}#stat{display:none}
-  header{padding:8px 10px;gap:6px;flex-wrap:wrap}header h1{display:none}#chat{min-width:0}form input{min-width:0}#readbtn .lbl{display:none}
+  header{padding:8px 10px;gap:6px;flex-wrap:wrap}header h1{display:none}#chat{min-width:0}form input{min-width:0}#readbtn .lbl,#grambtn .lbl{display:none}
   header button,header select{padding:4px 7px;font-size:12px;white-space:nowrap;max-width:110px}
   body.nb aside{display:block;position:fixed;left:0;right:0;bottom:0;top:var(--hh,49px);z-index:5;border:0}
   #who{width:96px}#char{width:92px;height:98px}#bubble{font-size:16px}#stage{padding:8px 10px;gap:10px}}
@@ -190,6 +190,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
     </div>
     <div id="msgs"><div class="note">Напишите ученику по-немецки (или по-русски/по-украински). Его записная книжка (справа или кнопка 📓) меняется по ходу разговора.</div></div>
     <form id="f"><input id="in" autocomplete="off" placeholder="Hallo! Wie geht es dir? — или вставьте текст/статью" autofocus>
+      <button type="button" id="grambtn" title="Разбор грамматики: ученик попробует перевести текст, найдёт, чему надо научиться, составит план по частям и потренируется" style="background:none;color:var(--ink);border:1px solid var(--line)">🧩<span class="lbl"> Разбор</span></button>
       <button type="button" id="readbtn" title="Ученик прочитает текст из поля: поймёт ли он его, что выучит и как" style="background:none;color:var(--ink);border:1px solid var(--line)">📖<span class="lbl"> Понимаешь?</span></button>
       <button id="go">Отправить</button></form>
   </section>
@@ -263,6 +264,31 @@ function botHtml(d){
       ${g.after_ru?`<div class="sum" style="margin-top:6px"><b>Теперь понимаю:</b> ${esc(g.after_ru)}</div>`:''}
       ${(g.unclear.length||g.still_unknown.length)?`<div class="note" style="margin-top:4px">Осталось непонятным: ${esc([...g.unclear,...g.still_unknown].join('; '))}</div>`:''}`;
   }
+  if(r.grammar){
+    const g=r.grammar, GS={known:['known','знаю'],fading:['partial','подзабыл'],weak:['partial','знаю слабо'],unknown:['unknown','не знаю'],new:['new','новая']};
+    const VB={ok:['ok','✓ верно'],partly:['','△ частично'],wrong:['no','✗ неверно']};
+    h+=`<div class="sec">🧩 Конструкции в тексте</div>`+g.constructs.map(c=>{const s=GS[c.status]||GS.new;
+      return `<div class="card"><span class="wc ${s[0]}">${esc(c.name)} · ${s[1]}</span>${c.level?`<span class="tag">${esc(c.level)}</span>`:''}
+        ${c.pattern?`<div class="note">Шаблон: ${esc(c.pattern)}</div>`:''}${c.example?`<div class="note">Из текста: «${esc(c.example)}»</div>`:''}
+        ${c.tip_ru?`<div>⚠ ${esc(c.tip_ru)}</div>`:''}</div>`}).join('');
+    h+=`<div class="sec">🔄 Перевод: его попытка и проверка</div>`+g.sentences.map(s=>{const v=VB[s.verdict]||['',''];
+      return `<div class="card"><b>${esc(s.de)}</b>
+        <div>Его попытка: ${esc(s.attempt_ru||'—')} ${v[1]?`<span class="${v[0]}"><b>${v[1]}</b></span>`:''}</div>
+        ${(s.errors||[]).length?`<div class="note">Ошибки: ${esc(s.errors.join('; '))}</div>`:''}
+        <div class="note">Эталон: ${esc(s.ref_ru||'')}</div>
+        ${s.after_ru?`<div class="sum" style="margin-top:4px">После изучения: ${esc(s.after_ru)}</div>`:''}
+        ${s.structure?`<div class="note">Разбор: ${esc(s.structure)}</div>`:''}</div>`}).join('');
+    if(g.attention_ru)h+=`<div class="sec">👀 На что он обратит внимание</div><div class="sum">${esc(g.attention_ru)}</div>`;
+    if(g.reflection_ru)h+=`<div class="sec">💡 Что понял теперь</div><div class="sum">${esc(g.reflection_ru)}</div>`;
+    const KI={words:'📖',grammar:'🧩',practice:'✍',writing:'📝'};
+    if((g.plan||[]).length)h+=`<div class="sec">🗺 План изучения по частям</div>`+g.plan.map(p=>
+      `<div class="card"><b>${esc(KI[p.kind]||'•')} ${esc(p.step)}. ${esc(p.title)}</b><span class="tag">${esc(p.when||'')}</span>
+        <div>${esc(p.what||'')}</div><div class="note">Как: ${esc(p.how||'')}</div></div>`).join('');
+    if((g.practice||[]).length)h+=`<div class="sec">✍ Его собственные примеры (проверены)</div>`+g.practice.map(p=>
+      `<div class="card"><div class="note">${esc(p.rule)}</div><b>${esc(p.de)}</b> ${p.checked?(p.ok?'<span class="ok"><b>✓ верно</b></span>':'<span class="no"><b>✗ ошибка</b></span>'):''}
+        ${!p.ok&&p.correction?`<div>Правильно: <b>${esc(p.correction)}</b></div>`:''}${!p.ok&&p.why?`<div class="note">${esc(p.why)}</div>`:''}</div>`).join('');
+    if(g.dropped)h+=`<div class="note">Примеров с незнакомыми ему словами отброшено: ${g.dropped}.</div>`;
+  }
   if((r.lookups||[]).length){
     h+='<div class="sec">🔎 Не знал — посмотрел в словаре</div>'+r.lookups.map(x=>
       `<div class="card"><b>${esc(x.article?x.article+' ':'')}${esc(x.lemma)}</b> <span class="note">${esc(x.pos||'')}</span>
@@ -325,7 +351,7 @@ restoreFeed();
 window.addEventListener('learner-sync',()=>{ if(api.feed)api.feed().then(items=>{const fresh=items.filter(i=>!shown.has(i.id));if(fresh.length){fresh.forEach(renderFeedItem);}}); });
 
 async function send(m,mode){
-  $('#in').value=''; $('#go').disabled=true; $('#readbtn').disabled=true;
+  $('#in').value=''; $('#go').disabled=true; $('#readbtn').disabled=true; $('#grambtn').disabled=true;
   add('me',esc(m.length>600?m.slice(0,600)+'…':m));
   const reading=mode==='read'||(!mode&&(m.match(/[A-Za-zÄÖÜäöüß]+/g)||[]).length>=14);
   const hasUrl=/https?:\/\/\S+/.test(m), gram=mode==='grammar';
@@ -344,10 +370,11 @@ async function send(m,mode){
       (g?`<div class="gloss">📖 Понимал ${Math.round(g.coverage_before*100)}% → теперь ${Math.round(g.coverage_after*100)}%</div>`:'')+
       (r.review_request?`<div class="gloss">🔁 ${esc(r.review_request.text_ru)}</div>`:''));
   }catch(err){wait.className='bot warn'; wait.textContent='Ошибка: '+err.message; mood('confused',5000); bubble('Что-то пошло не так (см. сообщение ниже).',true); if(/ключ|key/i.test(err.message))openSettings()}
-  $('#go').disabled=false; $('#readbtn').disabled=false; $('#in').focus(); wait.scrollIntoView({block:'end'});
+  $('#go').disabled=false; $('#readbtn').disabled=false; $('#grambtn').disabled=false; $('#in').focus(); wait.scrollIntoView({block:'end'});
 }
 $('#f').onsubmit=e=>{e.preventDefault();const m=$('#in').value.trim();if(m)send(m)};
 $('#readbtn').onclick=()=>{const m=$('#in').value.trim();if(m)send(m,'read')};
+$('#grambtn').onclick=()=>{const m=$('#in').value.trim();if(m)send(m,'grammar')};
 $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе повторить
   const b=e.target.closest('button[data-act]'); if(!b||$('#go').disabled)return;
   const w=b.dataset.lemma;

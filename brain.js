@@ -7,7 +7,8 @@ const READ_LEARN_SYSTEM = "Ты симулируешь ОДНОГО конкре
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты симулируешь ОДНОГО конкретного человека: носителя русского и украинского, который учит немецкий (уровень ~B1).\nТы не всезнающая модель и не учитель. Твой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-05 00:12";
+const APP_VERSION = "2026-10-05 00:16";
+const READ_PERSONA = "Ты симулируешь ОДНОГО конкретного человека: носителя русского и украинского, который учит немецкий (уровень ~B1).\nТы не всезнающая модель и не учитель. Твой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\n";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
 /* Браузерная версия «мозга» ученика. Порт learner.py + server.py на JS.
@@ -34,6 +35,7 @@ const FORGOTTEN = 0.2;
       turns: 0, last_ask: -99,   // счётчик реплик и когда ученик в последний раз просил повторить
       epoch: 0, fepoch: 0, touched: false,  // для синхронизации: поколение (сброс/перемотка), поколение ленты (только сброс) и «ученика уже трогали»
       chat: [], story: '', chat_t: 0,   // последние реплики и «дневник» прошлого: переживают смену модели и перезапуск
+      plan: null,                        // последний план изучения (из разбора грамматики)
     };
   };
   const migrate = st => {  // старые сохранения без полей памяти
@@ -43,6 +45,7 @@ const FORGOTTEN = 0.2;
     if (st.chat_t === undefined) st.chat_t = 0;
     if (st.epoch === undefined) st.epoch = 0;
     if (st.fepoch === undefined) st.fepoch = 0;
+    if (st.plan === undefined) st.plan = null;
     if (st.touched === undefined) st.touched = (st.log && st.log.length > 0) || st.turns > 0;
     if (st.turns === undefined) st.turns = 0;
     if (st.last_ask === undefined) st.last_ask = -99;
@@ -226,6 +229,7 @@ const FORGOTTEN = 0.2;
     const newer = (a.chat_t | 0) >= (b.chat_t | 0) ? a : b;   // диалог и «дневник» берём у того, где разговор был позже
     out.chat = newer.chat || []; out.story = newer.story || ''; out.chat_t = newer.chat_t | 0;
     out.fepoch = Math.max(a.fepoch | 0, b.fepoch | 0);
+    out.plan = !a.plan ? (b.plan || null) : !b.plan ? a.plan : (a.plan.t >= b.plan.t ? a.plan : b.plan);
     return out;
   }
 
@@ -412,7 +416,9 @@ const FORGOTTEN = 0.2;
     const learned = state.log.slice(-8).filter(e => e.item).map(e =>
       `  • ${e.item}${e.ru ? ' — ' + e.ru : ''} (способ: ${e.strategy || '?'}): ${(e.thought || '').slice(0, 110)}`).join('\n') || '  пока ничего';
     const story = (state.story || '').trim() || 'Вы с собеседником только начали заниматься.';
-    return `ПАМЯТЬ О ПРОШЛОМ (это твоя жизнь, ты помнишь это сам; в начале запроса — последние реплики разговора)\nДневник: ${story}\nНедавно учил и как:\n${learned}`;
+    const plan = state.plan && state.plan.steps && state.plan.steps.length
+      ? `\nМой план изучения (по тексту «${state.plan.about}…»): ` + state.plan.steps.map(s => `${s.step}) ${s.title}${s.when ? ' — ' + s.when : ''}`).join('; ') : '';
+    return `ПАМЯТЬ О ПРОШЛОМ (это твоя жизнь, ты помнишь это сам; в начале запроса — последние реплики разговора)\nДневник: ${story}\nНедавно учил и как:\n${learned}${plan}`;
   }
   const recentText = () => state.chat.length
     ? 'ПОСЛЕДНИЕ РЕПЛИКИ РАЗГОВОРА:\n' + state.chat.slice(-6).map(m => `  ${m.role === 'user' ? 'Собеседник' : 'Я'}: ${m.content.slice(0, 200)}`).join('\n') + '\n\n' : '';
@@ -703,6 +709,7 @@ const FORGOTTEN = 0.2;
       const article = await fetchArticle(url);
       return readTurn(msg, `Источник: ${url}\n${rest ? 'Вопрос собеседника: ' + rest + '\n' : ''}\n${article}`);
     }
+    if (mode === 'grammar' || (!mode && !url && isGrammarAsk(msg))) return grammarTurn(msg);
     if (mode === 'read' || (!mode && isReading(msg))) return readTurn(msg);
     expose(msg);                      // знакомые слова в сообщении собеседника освежаются
     const review = dueReviews();      // что пора повторить (просьба ученика сама)
@@ -826,6 +833,174 @@ const FORGOTTEN = 0.2;
       gist_before_ru: think.gist_before_ru || '', after_ru: reply.after_ru || '', unclear: reply.unclear || [],
       still_unknown: still.slice(0, 15), guesses };
     remember(msg, reply.reply_de);
+    persist(); notifyTelegram(reply);
+    return { reply, tokens, warning };
+  }
+
+  // ---------- разбор грамматики: перевод, на что обратить внимание, план «по частям», практика ----------
+  // Ученик сам пробует перевести (до того как увидит эталон) → нейтральный проверяющий сверяет → ученик ищет слова в интернете,
+  // учит конструкции, пишет СВОИ примеры → нейтральный проверяющий проверяет их, и именно от этого зависит, закрепилось ли правило.
+  const GRAM_ANALYZE_SYSTEM = `Ты нейтральный грамматический аналитик немецкого (не персонаж). Тебе дают немецкий текст и список известных названий грамматических правил. Верни ТОЛЬКО JSON-объект:
+{"sentences": [{"de": "предложение из текста", "ref_ru": "точный естественный перевод на русский", "structure": "краткий разбор по-русски: порядок слов, где сказуемое, падежи, особенности", "constructs": ["названия конструкций из этого предложения"]}],
+ "constructs": [{"name": "ТОЧНОЕ название из списка, если конструкция подходит; иначе короткое новое название", "pattern": "шаблон конструкции, например «weil + подлежащее … + спрягаемый глагол в конце»", "example": "цитата из текста", "tip_ru": "на что обратить внимание русско- и украиноязычному: типичные ошибки и отличия", "level": "A1|A2|B1|B2"}]}
+Не больше 6 предложений и 8 конструкций. Ничего не выдумывай: только то, что есть в тексте.`;
+  const GRAM_THINK_SYSTEM = READ_PERSONA + `Собеседник прислал немецкий текст и просит разобраться: как его перевести, на что обратить внимание при изучении и как это выучить. Ниже правда о твоей памяти: какие слова и какие конструкции ты знаешь, подзабыл или не знаешь. Не спорь с ней и не говори «программа». Подумай как живой ученик. Эталонного перевода у тебя пока нет. Верни ТОЛЬКО JSON-объект:
+{"attempts": [{"i": 0, "ru": "твоя попытка перевода i-го предложения по-русски; то, чего не понял, пиши как [?слово или конструкция]; не используй знания, которых нет в твоей памяти", "unsure": ["в чём не уверен"], "confidence": 0.0}],
+ "attention_ru": "на что ты обратишь внимание, когда будешь это учить: 3–5 пунктов от первого лица, по-русски",
+ "lookup": ["слова из списка незнакомых/забытых, которые надо найти в интернете (до 8, самые важные)"]}`;
+  const GRAM_JUDGE_SYSTEM = `Ты нейтральный проверяющий перевода (не персонаж). Тебе дают немецкие предложения, эталонный перевод и попытку ученика. Верни ТОЛЬКО JSON-объект:
+{"items": [{"i": 0, "verdict": "ok|partly|wrong", "errors": ["что не так и почему, по-русски, коротко"], "causes": ["названия конструкций или слова, из-за которых ошибка"]}]}`;
+  const GRAM_LEARN_SYSTEM = READ_PERSONA + `Ты попробовал перевести текст, увидел, где ошибся, нашёл незнакомые слова в интернете и прочитал разбор конструкций. Теперь выучи всё это и расскажи, как будешь учиться дальше. Найденные слова использовать можно, другие незнакомые нельзя. Не говори о программах и проверках, говори как человек. Верни ТОЛЬКО JSON-объект:
+{"learning": [{"item": "слово или конструкция", "kind": "word|grammar", "lemma": "для word", "rule": "для grammar — ТОЧНОЕ название конструкции из разбора", "strategy": "cognate_ru|cognate_uk|morphology|context|mnemonic|grammar_contrast|lookup", "thought": "как запоминаешь, 1–3 предложения, по-русски; для грамматики — чем отличается от русского/украинского", "ru": "перевод (для слов)", "uk": "переклад", "confidence_after": 0.0}],
+ "retranslation": [{"i": 0, "ru": "твой перевод предложения после изучения"}],
+ "reflection_ru": "что понял теперь про эти конструкции и слова, 2–4 предложения",
+ "plan": [{"step": 1, "kind": "words|grammar|practice|writing", "title": "коротко", "what": "что именно учить", "how": "как именно: конкретный приём", "when": "сегодня|завтра|через 3 дня|через неделю"}],
+ "practice": [{"rule": "название конструкции", "de": "ТВОЁ предложение с этой конструкцией, только из известных и найденных слов; пиши как ученик с твоим уровнем, не исправляй себя заранее", "used": [{"surface": "...", "lemma": "..."}]}],
+ "reply_de": "короткое сообщение собеседнику по-немецки, 1–2 предложения", "reply_used": [{"surface": "...", "lemma": "..."}], "reply_gloss_ru": "...",
+ "learned_summary": "что выучил и как, 2–3 предложения"}
+План строй ПО ЧАСТЯМ, от простого к сложному: сначала слова, потом конструкции по одной, потом практика, потом письмо; 3–6 шагов. В practice до 3 предложений.`;
+  const GRAM_PRACTICE_JUDGE_SYSTEM = `Ты нейтральный проверяющий немецких предложений ученика (не персонаж). Для каждого дано правило и предложение. Проверь, верно ли использована конструкция и нет ли других ошибок. Верни ТОЛЬКО JSON-объект:
+{"items": [{"i": 0, "ok": true, "correction": "исправленное предложение или пустая строка", "why": "что не так, по-русски, коротко"}]}`;
+  const GRAM_HINT = /разбер|как перевести|переведи|перевести|грамматик|конструкци|как учить|на что обратить/i;
+  const isGrammarAsk = msg => (msg.match(TOKEN) || []).length >= 4 && GRAM_HINT.test(msg);
+  const constructStatus = name => {
+    const key = Object.keys(state.grammar).find(k => k.toLowerCase() === String(name).toLowerCase());
+    if (!key) return { key: null, status: 'new', g: 0 };
+    const g = geff(key), raw = state.grammar[key];
+    return { key, g: Math.round(g * 100) / 100, status: g >= THRESHOLD ? 'known' : raw >= THRESHOLD ? 'fading' : g >= 0.2 ? 'weak' : 'unknown' };
+  };
+  async function wordTable(text) {
+    const rowsBy = {}; let words = [];
+    try { words = (await jsonCall(LEMMA_SYSTEM, text)).words || []; } catch (e) { if (!e.notJson) throw e; }
+    for (const w of words) {
+      const lemma = (w.lemma || '').trim(); if (!lemma) continue;
+      const r = rowsBy[lemma] = rowsBy[lemma] || { lemma, surface: w.surface || lemma, count: 0 };
+      r.count += parseInt(w.count || 1, 10) || 1;
+    }
+    const table = Object.values(rowsBy);
+    for (const r of table) r.before = lemmaStatus(r.lemma, new Set());
+    return table;
+  }
+  // фиксированные исходы вместо случайных: результат практики определяет, закрепилось ли правило
+  function roundsFromOutcomes(strength, stab, oks) {
+    let s = strength, b = stab;
+    oks.forEach((ok, i) => { if (ok) { s = Math.min(1, s + 0.12 * Math.pow(0.7, i) + 0.05); b = Math.min(365, b * 1.15); } else { s = Math.min(1, s + 0.05); b = b * 1.05; } });
+    const n = oks.length;
+    return { s, b, learned: n >= 2 && oks[n - 1] && oks[n - 2] && s >= THRESHOLD };
+  }
+
+  async function grammarTurn(msg) {
+    const text = msg.slice(0, 1800);
+    const analysis = await askJson(GRAM_ANALYZE_SYSTEM, [{ role: 'user', content:
+      `Известные правила:\n${Object.keys(state.grammar).map(r => '- ' + r).join('\n')}\n\nТЕКСТ:\n${text}` }]);
+    const sentences = (analysis.sentences || []).slice(0, 6);
+    if (!sentences.length) return turn(msg, 'chat');   // это не текст для разбора
+    const constructs = (analysis.constructs || []).slice(0, 8).map(c => ({ ...c, ...constructStatus(c.name) }));
+    const table = await wordTable(text);
+    const unknownWords = table.filter(r => ['unknown', 'forgot'].includes(r.before));
+    const facts = `ЧТО ТЫ ЗНАЕШЬ ИЗ ЭТОГО ТЕКСТА\nСлова:\n${table.map(r => `  ${r.lemma} ×${r.count} — ${r.before}`).join('\n') || '  (нет)'}\n` +
+      `Конструкции:\n${constructs.map(c => `  ${c.name} — ${{ known: 'знаю', fading: 'подзабыл', weak: 'знаю слабо', unknown: 'не знаю', new: 'не знаю, вижу впервые' }[c.status]}`).join('\n') || '  (нет)'}`;
+    // 1) ученик сам пробует перевести (эталона ещё не видит)
+    const think = await askJson(GRAM_THINK_SYSTEM, [{ role: 'user', content:
+      `${notebookText()}\n\n${recentText()}${facts}\n\nПРЕДЛОЖЕНИЯ:\n${sentences.map((s, i) => `${i}. ${s.de}`).join('\n')}\n\nСООБЩЕНИЕ СОБЕСЕДНИКА:\n${text}` }]);
+    const attempts = Object.fromEntries((think.attempts || []).map(a => [a.i, a]));
+    // 2) нейтральный проверяющий сверяет с эталоном
+    let judged = {};
+    try {
+      const j = await askJson(GRAM_JUDGE_SYSTEM, [{ role: 'user', content: sentences.map((s, i) =>
+        `${i}. DE: ${s.de}\n   ЭТАЛОН: ${s.ref_ru}\n   ПОПЫТКА УЧЕНИКА: ${(attempts[i] || {}).ru || '(нет)'}`).join('\n') }]);
+      judged = Object.fromEntries((j.items || []).map(x => [x.i, x]));
+    } catch (e) { if (/API|ключ/.test(e.message)) throw e; }
+    // 3) слова ищутся в интернете
+    const names = new Set(unknownWords.map(r => r.lemma));
+    let lookup = (think.lookup || []).filter(l => names.has(l));
+    if (!lookup.length) lookup = unknownWords.sort((a, b) => b.count - a.count).map(r => r.lemma);
+    lookup = lookup.slice(0, 8);
+    let dictionary = [];
+    for (let i = 0; i < lookup.length; i += 4)
+      dictionary.push(...await Promise.all(lookup.slice(i, i + 4).map(async t => ({ ...(await dictionaryLookup(t)), asked: t }))));
+    dictionary = dictionary.filter(d => d.lemma);
+    const fresh = new Set(dictionary.flatMap(d => [d.lemma.toLowerCase(), ...(d.article ? [d.article.toLowerCase()] : [])]));
+    // 4) ученик учит, строит план по частям и пишет свои примеры
+    const feedbackText = sentences.map((s, i) => { const j = judged[i] || {};
+      return `${i}. ${s.de}\n   твоя попытка: ${(attempts[i] || {}).ru || '(нет)'}\n   результат: ${{ ok: 'верно', partly: 'частично', wrong: 'неверно' }[j.verdict] || '?'}${(j.errors || []).length ? '; ошибки: ' + j.errors.join('; ') : ''}\n   эталон: ${s.ref_ru}\n   разбор: ${s.structure || ''}`; }).join('\n');
+    const base = `${notebookText()}\n\n${recentText()}${facts}\n\nТВОИ МЫСЛИ ДО ЭТОГО:\n${JSON.stringify({ attention_ru: think.attention_ru })}\n\nПЕРЕВОД И ОШИБКИ:\n${feedbackText}\n\n` +
+      `РАЗБОР КОНСТРУКЦИЙ:\n${JSON.stringify(constructs.map(({ name, pattern, example, tip_ru, status }) => ({ name, pattern, example, tip_ru, status })), null, 1)}\n\n` +
+      `СЛОВА (${sourceNote(dictionary)}):\n${JSON.stringify(dictionary.map(({ sources, ...d }) => d), null, 1)}\n\nСООБЩЕНИЕ СОБЕСЕДНИКА:\n${text}`;
+    let learn = null, feedback = null, warning = null;
+    for (let i = 0; i <= MAX_RETRIES; i++) {
+      learn = await askJson(GRAM_LEARN_SYSTEM, [{ role: 'user', content: base + (feedback ? `\n\nПРОВЕРКА НЕ ПРОЙДЕНА, ИСПРАВЬ reply_de:\n${feedback}` : '') }]);
+      const bad = violations({ reply_de: learn.reply_de, reply_used: learn.reply_used }, fresh);
+      if (!(learn.reply_de || '').trim()) bad.push('reply_de пуст');
+      if (!bad.length) { warning = null; break; }
+      feedback = warning = bad.join('; ');
+    }
+    // 5) свои примеры: слова — только известные; проверяет нейтральный проверяющий
+    const practiceAll = (learn.practice || []).slice(0, 3);
+    const practice = practiceAll.filter(p => p && p.de && !violations({ reply_de: p.de, reply_used: p.used || [] }, fresh).length);
+    let pj = {};
+    if (practice.length) {
+      try {
+        const j = await askJson(GRAM_PRACTICE_JUDGE_SYSTEM, [{ role: 'user', content: practice.map((p, i) => `${i}. ПРАВИЛО: ${p.rule}\n   ПРЕДЛОЖЕНИЕ: ${p.de}`).join('\n') }]);
+        pj = Object.fromEntries((j.items || []).map(x => [x.i, x]));
+      } catch (e) { if (/API|ключ/.test(e.message)) throw e; }
+    }
+    practice.forEach((p, i) => { const j = pj[i] || {}; p.ok = j.ok === true; p.checked = j.ok !== undefined; p.correction = j.correction || ''; p.why = j.why || ''; });
+    // 6) память: слова — через обычное изучение с усилиями; грамматика — по результатам практики
+    const learnedW = new Set((learn.learning || []).filter(i => i.kind === 'word').map(i => (i.lemma || '').toLowerCase()));
+    for (const d of dictionary) if (!learnedW.has(d.lemma.toLowerCase()) && !learnedW.has(String(d.asked || '').toLowerCase()))
+      (learn.learning = learn.learning || []).push({ item: d.lemma, kind: 'word', lemma: d.lemma, strategy: 'lookup',
+        thought: 'Посмотрел в интернете.', ru: d.ru || '', uk: d.uk || '', confidence_after: 0.3 });
+    for (const c of constructs) if (c.status === 'new' && !(learn.learning || []).some(i => i.kind === 'grammar' && i.rule === c.name))
+      (learn.learning = learn.learning || []).push({ item: c.name, kind: 'grammar', rule: c.name, strategy: 'grammar_contrast',
+        thought: c.tip_ru || 'Новая конструкция.', confidence_after: 0.2 });
+    const tokens = annotate(learn, fresh);
+    const savedEffort = settings.effort;
+    const grammarNames = new Set((learn.learning || []).filter(i => i.kind === 'grammar').map(i => i.rule));
+    const wordsOnly = { ...learn, learning: (learn.learning || []).filter(i => i.kind === 'word') };
+    const sessions = applyLearning(wordsOnly);   // слова: обычные усилия
+    const now = Date.now();
+    for (const it of (learn.learning || []).filter(i => i.kind === 'grammar')) {   // правила: создаются/укрепляются, исход даёт практика
+      const r = it.rule, m = state.gmeta[r] = state.gmeta[r] || { last: now, stab: 10 };
+      if (state.grammar[r] === undefined) state.grammar[r] = Math.max(0.1, Math.min(0.3, +it.confidence_after || 0.2));
+      else state.grammar[r] = Math.min(1, geff(r, now) + 0.08);
+      m.stab = Math.min(365, Math.max(m.stab, 3) * 1.3); m.last = now;
+      const oks = practice.filter(p => p.rule === r && p.checked).map(p => p.ok);
+      if (oks.length) {
+        const x = roundsFromOutcomes(state.grammar[r], m.stab, oks); state.grammar[r] = x.s; m.stab = x.b;
+        sessions.push(session('grammar', r, '', x.s, x.b, oks, x.learned));
+      }
+      state.log.push({ item: r, strategy: it.strategy, thought: it.thought, t: now });
+    }
+    for (const r of new Set(practice.map(p => p.rule))) {   // практика на правиле, которое уже было в памяти: исход тоже меняет силу
+      if (grammarNames.has(r) || state.grammar[r] === undefined) continue;
+      const oks = practice.filter(p => p.rule === r && p.checked).map(p => p.ok); if (!oks.length) continue;
+      const m = state.gmeta[r], x = roundsFromOutcomes(geff(r, now), m.stab, oks);
+      state.grammar[r] = x.s; m.stab = x.b; m.last = now;
+      sessions.push(session('grammar', r, '', x.s, x.b, oks, x.learned));
+    }
+    for (const c of constructs) if (c.key && !grammarNames.has(c.key) && c.status !== 'unknown') {   // знакомая конструкция встретилась в тексте — повторение
+      const m = state.gmeta[c.key], r = recall(m.last, m.stab, now);
+      [state.grammar[c.key], m.stab] = retrieve(state.grammar[c.key], geff(c.key, now), r, m.stab, 0.04); m.last = now;
+    }
+    expose(table.filter(r => r.before !== 'unknown').map(r => r.lemma).join(' '));
+    // план изучения запоминается: любая модель продолжит ту же «жизнь»
+    state.plan = { t: now, about: text.slice(0, 80), steps: (learn.plan || []).slice(0, 6) };
+    const reflection = await reflect(sessions, { learning: learn.learning || [] }, `\nЭто был разбор текста по грамматике. Ты перевёл ${Object.values(judged).filter(j => j.verdict === 'ok').length} из ${sentences.length} предложений верно с первого раза.`);
+    state.turns++;
+    const rt = Object.fromEntries((learn.retranslation || []).map(x => [x.i, x.ru]));
+    const reply = { comprehension: table.filter(r => r.before !== 'known').slice(0, 14).map(r => ({ item: r.surface, status: { unknown: 'unknown', forgot: 'forgot', partial: 'guess' }[r.before], note: '' })),
+      learning: learn.learning || [], lookups: dictionary, reply_de: learn.reply_de, reply_used: learn.reply_used, reply_gloss_ru: learn.reply_gloss_ru,
+      learned_summary: learn.learned_summary, review_request: null,
+      study: { effort: savedEffort, sessions, reflection },
+      grammar: {
+        sentences: sentences.map((s, i) => ({ de: s.de, ref_ru: s.ref_ru, structure: s.structure, attempt_ru: (attempts[i] || {}).ru || '', unsure: (attempts[i] || {}).unsure || [],
+          verdict: (judged[i] || {}).verdict || '', errors: (judged[i] || {}).errors || [], after_ru: rt[i] || '' })),
+        constructs: constructs.map(({ name, pattern, example, tip_ru, level, status, g }) => ({ name, pattern, example, tip_ru, level, status, g })),
+        attention_ru: think.attention_ru || '', reflection_ru: learn.reflection_ru || '', plan: state.plan.steps,
+        practice: practice.map(({ rule, de, ok, checked, correction, why }) => ({ rule, de, ok, checked, correction, why })),
+        dropped: practiceAll.length - practice.length } };
+    remember(msg, reply.reply_de || '');
     persist(); notifyTelegram(reply);
     return { reply, tokens, warning };
   }
