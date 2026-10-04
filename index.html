@@ -23,9 +23,9 @@ main{flex:1;display:grid;grid-template-columns:1fr 340px;min-height:0}
 #nb{display:none}
 @media(max-width:800px){main{grid-template-columns:1fr}aside{display:none}
   #nb{display:inline-block}#stat{display:none}
-  header{padding:8px 10px;gap:6px}header h1{font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  header{padding:8px 10px;gap:6px;flex-wrap:wrap}header h1{display:none}#chat{min-width:0}form input{min-width:0}#readbtn .lbl{display:none}
   header button,header select{padding:4px 7px;font-size:12px;white-space:nowrap;max-width:110px}
-  body.nb aside{display:block;position:fixed;left:0;right:0;bottom:0;top:49px;z-index:5;border:0}
+  body.nb aside{display:block;position:fixed;left:0;right:0;bottom:0;top:var(--hh,49px);z-index:5;border:0}
   #who{width:96px}#char{width:92px;height:98px}#bubble{font-size:16px}#stage{padding:8px 10px;gap:10px}}
 #chat{display:flex;flex-direction:column;min-height:0}
 #msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
@@ -121,6 +121,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <select id="effort" title="Усердие: сколько раз ученик проверяет себя при изучении нового слова или правила. Больше усилий — крепче, но без повторов всё равно забывается" style="border:1px solid var(--line);background:none;color:var(--ink);border-radius:6px;padding:4px 6px;font:inherit">
     <option value="0">🎯 Без усилий</option><option value="1">🎯 Лёгкое</option><option value="3" selected>🎯 Среднее</option><option value="5">🎯 Высокое</option>
   </select>
+  <button id="sync" hidden title="Синхронизация между устройствами через Telegram">☁</button>
   <button id="nb">📓 Книжка</button>
   <button id="cfg">⚙ Настройки</button>
   <button id="reset">Сбросить память</button>
@@ -139,6 +140,11 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
     <input id="s_tgtoken" type="password" autocomplete="off" placeholder="токен от @BotFather">
     <label>ID чата (необязательно: в Telegram берётся автоматически; боту нужно сначала нажать /start)</label>
     <input id="s_tgchat" autocomplete="off">
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" id="s_backup" style="padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit">Сохранить всё в файл</button>
+      <button type="button" id="s_restore" style="padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit">Загрузить из файла</button>
+      <input type="file" id="s_file" accept=".json,application/json" hidden>
+    </div>
     <button type="button" id="s_export" style="margin-top:12px;padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit">Экспорт журнала обучения</button>
   </div>
   <div id="webnote" class="note" hidden style="margin-top:8px">Ключ хранится только в этом браузере и отправляется напрямую провайдеру модели. Память ученика — тоже только в этом браузере.</div>
@@ -175,7 +181,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
     </div>
     <div id="msgs"><div class="note">Напишите ученику по-немецки (или по-русски/по-украински). Его записная книжка (справа или кнопка 📓) меняется по ходу разговора.</div></div>
     <form id="f"><input id="in" autocomplete="off" placeholder="Hallo! Wie geht es dir? — или вставьте текст/статью" autofocus>
-      <button type="button" id="readbtn" title="Ученик прочитает текст из поля: поймёт ли он его, что выучит и как" style="background:none;color:var(--ink);border:1px solid var(--line)">📖 Понимаешь?</button>
+      <button type="button" id="readbtn" title="Ученик прочитает текст из поля: поймёт ли он его, что выучит и как" style="background:none;color:var(--ink);border:1px solid var(--line)">📖<span class="lbl"> Понимаешь?</span></button>
       <button id="go">Отправить</button></form>
   </section>
   <aside>
@@ -354,6 +360,18 @@ $('#skip').onchange=async e=>{
 };
 $('#nb').onclick=()=>{const on=document.body.classList.toggle('nb');$('#nb').textContent=on?'💬 Чат':'📓 Книжка'};
 $('#s_cancel').onclick=()=>$('#dlg').close();
+$('#s_backup').onclick=async()=>{
+  const t=await api.exportState();
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'application/json'}));a.download='uchenik-backup.json';a.click();$('#serr').style.color='var(--known)';$('#serr').textContent='Резервная копия сохранена в файл'}
+  catch(e){$('#serr').textContent='Не удалось сохранить файл'}
+};
+$('#s_restore').onclick=()=>$('#s_file').click();
+$('#s_file').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f)return;
+  if(!confirm('Заменить текущий прогресс данными из файла? Это дойдёт и до других ваших устройств.'))return;
+  try{prevKnown=null;renderState(await api.importState(await f.text()));$('#serr').style.color='var(--known)';$('#serr').textContent='Прогресс загружен из файла'}
+  catch(err){$('#serr').style.color='var(--unk)';$('#serr').textContent='Ошибка: '+err.message}
+};
 $('#s_export').onclick=async()=>{
   const t=await api.exportLog();
   let how='';
@@ -371,6 +389,21 @@ api.getSettings().then(s=>{
   if(s.error&&!s.mock)openSettings();
 });
 $('#effort').onchange=e=>api.saveSettings({effort:+e.target.value});
+
+// высота шапки нужна, чтобы «Книжка» на телефоне открывалась ровно под ней
+const fitHeader=()=>document.documentElement.style.setProperty('--hh',document.querySelector('header').offsetHeight+'px');
+addEventListener('resize',fitHeader);fitHeader();
+
+// ---- синхронизация между устройствами (только в Telegram) ----
+function updateSync(){
+  if(!window.api||!api.syncStatus)return;
+  const s=api.syncStatus(), b=$('#sync'); b.hidden=!s.enabled; if(!s.enabled)return;
+  b.textContent=s.ok===false?'☁ ⚠':s.at?'☁ '+new Date(s.at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):'☁ …';
+  b.title=s.ok===false?'Ошибка синхронизации: '+s.error:'Синхронизировано. Нажмите, чтобы обновить сейчас';
+}
+window.addEventListener('learner-sync',()=>{updateSync();api.state().then(renderState)});
+$('#sync').onclick=async()=>{$('#sync').textContent='☁ …';await api.syncNow();updateSync()};
+updateSync();
 </script>
 </body>
 </html>

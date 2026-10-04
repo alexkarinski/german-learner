@@ -30,10 +30,13 @@ const FORGOTTEN = 0.2;
       gmeta: Object.fromEntries(Object.keys(SEED.grammar).map(r => [r, { last: now, stab: logUniform(30, 120) }])),
       log: [],
       turns: 0, last_ask: -99,   // счётчик реплик и когда ученик в последний раз просил повторить
+      epoch: 0, touched: false,  // для синхронизации: поколение (сброс/перемотка) и «ученика уже трогали»
     };
   };
   const migrate = st => {  // старые сохранения без полей памяти
     const now = Date.now();
+    if (st.epoch === undefined) st.epoch = 0;
+    if (st.touched === undefined) st.touched = (st.log && st.log.length > 0) || st.turns > 0;
     if (st.turns === undefined) st.turns = 0;
     if (st.last_ask === undefined) st.last_ask = -99;
     for (const [l, v] of Object.entries(st.vocab)) {
@@ -145,28 +148,85 @@ const FORGOTTEN = 0.2;
   const csSet = obj => new Promise(res => CS.setItems(obj, () => res()));
   const csDel = keys => new Promise(res => CS.removeItems(keys, () => res()));
   let cloudChunks = 0;
-  async function loadCloud() {
+  async function loadCloud(retry = true) {
     const n = parseInt((await csGet(['st_n'])).st_n || '0', 10);
     if (!n) return null;
     const keys = Array.from({ length: n }, (_, i) => 'st_' + i);
     const vals = await csGet(keys);
     cloudChunks = n;
-    return JSON.parse(keys.map(k => vals[k] || '').join(''));
+    try { return JSON.parse(keys.map(k => vals[k] || '').join('')); }
+    catch (e) {  // другое устройство как раз писало: читаем ещё раз
+      if (!retry) throw e;
+      await new Promise(r => setTimeout(r, 800));
+      return loadCloud(false);
+    }
   }
   async function saveCloud() {
     const s = JSON.stringify(state), obj = {};
     const n = Math.ceil(s.length / CHUNK);
     for (let i = 0; i < n; i++) obj['st_' + i] = s.slice(i * CHUNK, (i + 1) * CHUNK);
-    obj.st_n = String(n);
+    obj.st_n = String(n);   // счётчик пишется вместе с кусками; читатель при сбое повторяет чтение
     await csSet(obj);
     if (cloudChunks > n) await csDel(Array.from({ length: cloudChunks - n }, (_, i) => 'st_' + (n + i)));
     cloudChunks = n;
   }
-  const persist = () => { if (state.log.length > 200) state.log = state.log.slice(-200); save(LS_STATE, state); if (CS) saveCloud().catch(() => {}); };
-  const ready = (async () => {
-    if (!CS) return;
-    try { const c = await loadCloud(); if (c && c.vocab) state = migrate(c); else await saveCloud(); } catch {}
-  })();
+
+  // Слияние двух устройств: по каждому слову/правилу побеждает запись с более поздним повторением (last).
+  // Сброс и перемотка времени — осознанные глобальные действия: они повышают epoch, и состояние с большим epoch
+  // побеждает целиком (иначе слияние «откатило» бы их). Нетронутое состояние (touched=false) никогда не затирает прогресс.
+  function mergeStates(a, b) {   // a — локальное, b — облачное
+    if (!b.touched) return a;
+    if (!a.touched) return b;
+    if ((a.epoch | 0) !== (b.epoch | 0)) return (a.epoch | 0) > (b.epoch | 0) ? a : b;
+    const out = { ...a, vocab: {}, grammar: {}, gmeta: {} };
+    for (const l of new Set([...Object.keys(a.vocab), ...Object.keys(b.vocab)])) {
+      const x = a.vocab[l], y = b.vocab[l];
+      out.vocab[l] = !x ? y : !y ? x : x.last !== y.last ? (x.last > y.last ? x : y) : (x.seen >= y.seen ? x : y);
+    }
+    for (const r of new Set([...Object.keys(a.grammar), ...Object.keys(b.grammar)])) {
+      const ma = a.gmeta[r], mb = b.gmeta[r];
+      const useA = a.grammar[r] === undefined ? false : b.grammar[r] === undefined ? true : (!mb || (ma && ma.last >= mb.last));
+      out.grammar[r] = useA ? a.grammar[r] : b.grammar[r];
+      out.gmeta[r] = useA ? ma : mb;
+    }
+    const seen = new Map();
+    for (const e of [...(a.log || []), ...(b.log || [])]) seen.set(`${e.t}|${e.item}`, e);
+    out.log = [...seen.values()].sort((p, q) => (p.t || 0) - (q.t || 0)).slice(-200);
+    out.turns = Math.max(a.turns | 0, b.turns | 0);
+    out.last_ask = Math.max(a.last_ask | 0, b.last_ask | 0);
+    return out;
+  }
+
+  let syncInfo = { enabled: !!CS, at: null, ok: null, error: null };
+  let syncChain = Promise.resolve(), syncTimer = null;
+  async function syncNow() {   // подтянуть облако, слить с локальным, записать назад
+    if (!CS) return false;
+    try {
+      const c = await loadCloud();
+      if (c && c.vocab) state = migrate(mergeStates(state, migrate(c)));
+      if (state.log.length > 200) state.log = state.log.slice(-200);
+      save(LS_STATE, state);
+      await saveCloud();
+      syncInfo = { enabled: true, at: Date.now(), ok: true, error: null };
+    } catch (e) {
+      syncInfo = { enabled: true, at: syncInfo.at, ok: false, error: String((e && e.message) || e) };
+    }
+    window.dispatchEvent(new Event('learner-sync'));
+    return syncInfo.ok;
+  }
+  const queueSync = () => (syncChain = syncChain.then(syncNow));
+  const persist = () => {
+    state.touched = true;
+    if (state.log.length > 200) state.log = state.log.slice(-200);
+    save(LS_STATE, state);
+    if (CS) { clearTimeout(syncTimer); syncTimer = setTimeout(queueSync, 700); }
+  };
+  const ready = CS ? queueSync() : Promise.resolve();
+  if (CS) {   // вернулись в приложение — подтянуть прогресс с другого устройства
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) queueSync(); });
+    window.addEventListener('focus', queueSync);
+    setInterval(() => { if (!document.hidden) queueSync(); }, 60000);
+  }
 
   // ---------- вызов модели напрямую из браузера ----------
   async function complete(system, msgs) {
@@ -517,9 +577,20 @@ const FORGOTTEN = 0.2;
   window.api = {
     web: true,
     state: async () => { await ready; return snapshot(); },
-    reset: async () => { await ready; state = newState(); history = []; persist(); return snapshot(); },
+    reset: async () => { await ready; const ep = (state.epoch | 0) + 1; state = newState(); state.epoch = ep; history = []; persist(); return snapshot(); },
     chat: async (msg, mode) => { await ready; const r = await turn(msg, mode); return { ...r, state: snapshot() }; },
-    skip: async days => { await ready; skipDays(Math.max(0, Math.min(3650, +days || 0))); persist(); return snapshot(); },
+    skip: async days => { await ready; skipDays(Math.max(0, Math.min(3650, +days || 0))); state.epoch = (state.epoch | 0) + 1; persist(); return snapshot(); },
+    syncStatus: () => ({ ...syncInfo }),
+    syncNow: async () => { await queueSync(); return { ...syncInfo }; },
+    exportState: async () => { await ready; return JSON.stringify(state); },
+    importState: async json => {   // полная резервная копия: заменяет прогресс (поколение +1, чтобы это дошло до других устройств)
+      await ready;
+      const s = JSON.parse(json);
+      if (!s || typeof s.vocab !== 'object' || typeof s.grammar !== 'object') throw new Error('Это не файл резервной копии ученика');
+      const ep = Math.max(state.epoch | 0, s.epoch | 0) + 1;
+      state = migrate(s); state.epoch = ep; history = []; persist();
+      return snapshot();
+    },
     getSettings: async () => publicSettings(),
     exportLog: async () => { await ready; return exportLog(); },
     saveSettings: async o => {
