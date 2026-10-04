@@ -15,6 +15,7 @@
   --known:#6fd09a;--known-bg:#173a28;--shaky:#f0b64d;--shaky-bg:#3d2f10;--unk:#ff8f85;--unk-bg:#43191a;
   --accent:#8aa8ff;--me:#26304d;}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,sans-serif;height:100vh;display:flex;flex-direction:column}
 header{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;background:var(--panel)}
 header h1{font-size:16px;margin:0;flex:1}
@@ -133,8 +134,10 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <label>Протокол</label>
   <select id="s_provider"><option value="anthropic">Anthropic</option><option value="openai">OpenAI-совместимый</option></select>
   <label>Адрес (пусто = по умолчанию)</label><input id="s_url" autocomplete="off">
+  <div id="s_eff" class="note" style="margin-top:4px;word-break:break-all"></div>
   <label>API-ключ <span id="keyhint"></span></label><input id="s_key" type="password" autocomplete="off" placeholder="вставьте ключ">
   <label>Модель</label><input id="s_model" autocomplete="off">
+  <label id="cloudrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_cloud" style="width:auto;margin-top:3px"><span>☁ Хранить настройки (в том числе ключ) в облаке Telegram: ввести один раз, и они подтянутся на всех ваших устройствах и не сбросятся. Снимите галочку, если не хотите, чтобы ключ был в облаке.</span></label>
   <div id="webonly" hidden>
     <label>Токен Telegram-бота — пересылать записи об обучении в ваш чат <span id="tghint"></span></label>
     <input id="s_tgtoken" type="password" autocomplete="off" placeholder="токен от @BotFather">
@@ -145,6 +148,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <button type="button" id="s_restore" style="padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit">Загрузить из файла</button>
       <input type="file" id="s_file" accept=".json,application/json" hidden>
     </div>
+    <button type="button" id="s_test" style="margin-top:12px;padding:7px 14px;border:1px solid var(--accent);border-radius:8px;background:none;color:var(--accent);cursor:pointer;font:inherit">Проверить подключение</button>
     <button type="button" id="s_export" style="margin-top:12px;padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit">Экспорт журнала обучения</button>
   </div>
   <div id="webnote" class="note" hidden style="margin-top:8px">Ключ хранится только в этом браузере и отправляется напрямую провайдеру модели. Память ученика — тоже только в этом браузере.</div>
@@ -337,7 +341,9 @@ async function openSettings(){
   $('#webnote').hidden=!window.api; $('#webonly').hidden=!window.api;
   $('#s_tgtoken').value=''; $('#s_tgchat').value=s.tg_chat||'';
   $('#tghint').textContent=s.has_tg?'(сохранён; пусто = не менять)':'';
+  $('#cloudrow').hidden=!s.cloud; $('#s_cloud').checked=s.cloud_key!==false; $('#s_test').hidden=!window.api;
   $('#s_provider').value=s.provider;$('#s_url').value=s.base_url;$('#s_model').value=s.model;$('#s_key').value='';
+  showEff();
   $('#keyhint').textContent=s.has_key?'(сохранён; оставьте пустым, чтобы не менять)':'';
   $('#serr').textContent=s.error||(s.mock?'Демо-режим: настоящая модель не используется.':'');
   $('#dlg').showModal();
@@ -380,9 +386,38 @@ $('#s_export').onclick=async()=>{
   $('#serr').style.color='var(--known)';$('#serr').textContent=how||'не удалось экспортировать';
 };
 $('#preset').onchange=e=>{const p=PRESETS[e.target.value];if(!p)return;$('#s_provider').value=p[0];$('#s_url').value=p[1];$('#s_model').value=p[2]};
+const formSettings=()=>({provider:$('#s_provider').value,base_url:$('#s_url').value,model:$('#s_model').value,api_key:$('#s_key').value,
+  tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value,cloud_key:$('#s_cloud').checked});
 $('#s_save').onclick=async()=>{
-  const s=await api.saveSettings({provider:$('#s_provider').value,base_url:$('#s_url').value,model:$('#s_model').value,api_key:$('#s_key').value,tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value});
+  const s=await api.saveSettings(formSettings());
   if(s.error)$('#serr').textContent=s.error;else $('#dlg').close();
+};
+// куда реально уйдёт запрос — чтобы ошибки адреса и протокола были видны сразу
+function effUrl(){
+  const p=$('#s_provider').value, b=$('#s_url').value.trim().replace(/\/$/,'');
+  return p==='openai'?(b||'https://api.openai.com/v1')+'/chat/completions':(b||'https://api.anthropic.com')+'/v1/messages';
+}
+function showEff(){
+  const p=$('#s_provider').value, b=$('#s_url').value.trim().replace(/\/$/,'');
+  $('#s_eff').innerHTML='Запрос уйдёт на: <b>'+esc(effUrl())+'</b>'+
+    (p==='anthropic'&&/\/v1$/.test(b)?'<div style="color:var(--unk)">⚠ Для протокола Anthropic адрес не должен кончаться на /v1 — выберите «OpenAI-совместимый» или уберите /v1.</div>':'');
+}
+['#s_provider','#s_url'].forEach(s=>{$(s).addEventListener('input',showEff);$(s).addEventListener('change',showEff)});
+$('#preset').addEventListener('change',showEff);
+$('#s_test').onclick=async()=>{
+  const e=$('#serr'); e.style.color=''; e.textContent='Проверяю подключение…';
+  await api.saveSettings(formSettings());
+  const r=await api.testConnection();
+  if(r.ok){e.style.color='var(--known)';e.textContent='✅ Работает. Ответ модели: «'+r.answer+'»'}
+  else{
+    e.style.color='var(--unk)';
+    const m=r.error||''; let hint='';
+    if(/401|invalid.*key|authentication/i.test(m))hint=' → Ключ не принят: создайте новый ключ и вставьте его целиком, без пробелов.';
+    else if(/404/.test(m))hint=' → Такого адреса нет. Для «OpenAI-совместимый» адрес должен заканчиваться на /v1, для «Anthropic» — без /v1.';
+    else if(/model/i.test(m)&&/400|not found|missing/i.test(m))hint=' → Проверьте поле «Модель»: название из списка моделей провайдера, символ в символ.';
+    else if(/Failed to fetch|NetworkError|Load failed/i.test(m))hint=' → Браузер не смог отправить запрос: нет сети или сервер не разрешает запросы из браузера (CORS).';
+    e.textContent='❌ '+m+hint+' (адрес: '+r.url+')';
+  }
 };
 api.getSettings().then(s=>{
   if(s.effort!==undefined)$('#effort').value=String(s.effort);

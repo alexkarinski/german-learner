@@ -70,7 +70,7 @@ const FORGOTTEN = 0.2;
     for (const m of Object.values(state.gmeta)) m.last -= sh;
   };
   let settings = { provider: 'anthropic', base_url: '', api_key: '', model: 'claude-sonnet-5-5',
-                   tg_token: '', tg_chat: '', effort: 3, ...load(LS_SET, {}) };
+                   tg_token: '', tg_chat: '', effort: 3, cloud_key: true, ...load(LS_SET, {}) };
   let history = [];
 
   // ---------- просьба повторить: ученик сам замечает, что забывает ----------
@@ -221,7 +221,26 @@ const FORGOTTEN = 0.2;
     save(LS_STATE, state);
     if (CS) { clearTimeout(syncTimer); syncTimer = setTimeout(queueSync, 700); }
   };
-  const ready = CS ? queueSync() : Promise.resolve();
+  // Настройки (включая ключ) тоже живут в облаке Telegram, чтобы вводить их один раз: локальное хранилище
+  // Telegram-приложения на телефоне периодически очищается. Отключается галочкой в настройках.
+  const CFG_FIELDS = ['provider', 'base_url', 'model', 'api_key', 'effort', 'tg_token', 'tg_chat'];
+  async function saveCfg() {
+    if (!CS) return;
+    if (settings.cloud_key === false) { await csDel(['cfg']); return; }
+    const o = { cloud_key: true }; for (const k of CFG_FIELDS) o[k] = settings[k];
+    await csSet({ cfg: JSON.stringify(o) });
+  }
+  async function adoptCfg() {   // на устройстве нет ключа — берём всю конфигурацию из облака (протокол, адрес, модель — вместе с ключом)
+    try {
+      const raw = (await csGet(['cfg'])).cfg;
+      if (raw && !settings.api_key) {
+        const c = JSON.parse(raw);
+        if (c.api_key) { for (const k of CFG_FIELDS) if (c[k] !== undefined) settings[k] = c[k]; settings.cloud_key = true; save(LS_SET, settings); }
+      }
+      if (settings.api_key) await saveCfg();   // локальные настройки есть, а в облаке нет — положить
+    } catch (e) { console.warn('cfg sync:', e); }
+  }
+  const ready = CS ? (async () => { await adoptCfg(); await queueSync(); })() : Promise.resolve();
   if (CS) {   // вернулись в приложение — подтянуть прогресс с другого устройства
     document.addEventListener('visibilitychange', () => { if (!document.hidden) queueSync(); });
     window.addEventListener('focus', queueSync);
@@ -229,16 +248,19 @@ const FORGOTTEN = 0.2;
   }
 
   // ---------- вызов модели напрямую из браузера ----------
+  const effectiveUrl = () => settings.provider === 'openai'
+    ? (settings.base_url || 'https://api.openai.com/v1').replace(/\/$/, '') + '/chat/completions'
+    : (settings.base_url || 'https://api.anthropic.com').replace(/\/$/, '') + '/v1/messages';
   async function complete(system, msgs) {
     const key = settings.api_key;
     if (!key) throw new Error('Не задан API-ключ. Откройте ⚙ Настройки.');
     let url, headers, body;
     if (settings.provider === 'openai') {
-      url = (settings.base_url || 'https://api.openai.com/v1').replace(/\/$/, '') + '/chat/completions';
+      url = effectiveUrl();
       headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key };
       body = { model: settings.model, max_tokens: 2000, messages: [{ role: 'system', content: system }, ...msgs] };
     } else {
-      url = (settings.base_url || 'https://api.anthropic.com').replace(/\/$/, '') + '/v1/messages';
+      url = effectiveUrl();
       headers = { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01',
                   'anthropic-dangerous-direct-browser-access': 'true' };
       body = { model: settings.model, max_tokens: 2000, system, messages: msgs };
@@ -572,7 +594,7 @@ const FORGOTTEN = 0.2;
     };
   };
   const publicSettings = () => ({ provider: settings.provider, base_url: settings.base_url, model: settings.model,
-    has_key: !!settings.api_key, effort: settings.effort, has_tg: !!settings.tg_token, tg_chat: settings.tg_chat, error: settings.api_key ? null : 'Не задан API-ключ. Откройте ⚙ Настройки.', mock: false });
+    has_key: !!settings.api_key, effort: settings.effort, cloud: !!CS, cloud_key: settings.cloud_key !== false, has_tg: !!settings.tg_token, tg_chat: settings.tg_chat, error: settings.api_key ? null : 'Не задан API-ключ. Откройте ⚙ Настройки.', mock: false });
 
   window.api = {
     web: true,
@@ -599,8 +621,15 @@ const FORGOTTEN = 0.2;
       if (o.tg_token) settings.tg_token = String(o.tg_token).trim();
       if ('tg_chat' in o) settings.tg_chat = String(o.tg_chat).trim();
       if ('effort' in o) settings.effort = Math.max(0, Math.min(8, parseInt(o.effort, 10) || 0));
+      if ('cloud_key' in o) settings.cloud_key = !!o.cloud_key;
       save(LS_SET, settings);
+      if (CS) await saveCfg().catch(() => {});
       return publicSettings();
+    },
+    // Проверка подключения: крошечный запрос; показывает адрес и ответ, чтобы ошибки настройки были видны сразу
+    testConnection: async () => {
+      try { const t = await complete('Ответь одним словом: ok', [{ role: 'user', content: 'ping' }]); return { ok: true, url: effectiveUrl(), answer: String(t).slice(0, 80) }; }
+      catch (e) { return { ok: false, url: effectiveUrl(), error: String((e && e.message) || e) }; }
     },
   };
 })();
