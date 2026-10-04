@@ -160,7 +160,14 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <button type="button" class="chip2" data-bk="grammar">🧩 Разбор грамматики</button>
       <button type="button" class="chip2" data-bk="task">🎯 Упражнение по фрагменту</button>
     </div>
-    <div style="display:flex;gap:6px;margin-top:10px"><input id="b_q" placeholder="Найти в книге: слово или тема" style="flex:1"><button type="button" class="mini" id="b_find" style="margin:0">Искать</button></div>
+    <div id="c_box" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--line)">
+      <b>🗺 Курс по учебнику</b>
+      <div class="note" id="c_info" style="margin:4px 0">Макс составит оглавление по структуре книги и поведёт по урокам: читаем → грамматика → упражнения из книги → проверка. Урок засчитывается, когда пройдены все шаги.</div>
+      <button type="button" class="chip2" id="c_build">🗺 Составить курс по этой книге</button>
+      <div id="c_units" style="margin-top:6px"></div>
+      <button type="button" class="chip2" id="c_next" hidden style="font-weight:600;margin-top:6px">▶ Дальше по курсу</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:12px"><input id="b_q" placeholder="Найти в книге: слово или тема" style="flex:1"><button type="button" class="mini" id="b_find" style="margin:0">Искать</button></div>
     <div id="b_found"></div>
     <button type="button" class="mini" id="b_remove" style="margin:10px 0 0 0">Убрать книгу с этого устройства</button>
   </div>
@@ -317,6 +324,12 @@ function botHtml(d){
       <div class="note">зелёное — знал · оранжевое — подзабыл · красное — не знаю · синее — выучил сейчас</div>
       ${g.after_ru?`<div class="sum" style="margin-top:6px"><b>Теперь понимаю:</b> ${esc(g.after_ru)}</div>`:''}
       ${(g.unclear.length||g.still_unknown.length)?`<div class="note" style="margin-top:4px">Осталось непонятным: ${esc([...g.unclear,...g.still_unknown].join('; '))}</div>`:''}`;
+  }
+  if(r.course){
+    const c=r.course;
+    h=`<div class="how" style="margin:0 0 8px"><b>🗺 Курс · урок ${c.no}/${c.total} «${esc(c.title)}»</b>шаг ${c.step} из ${c.steps}`+
+      (c.unit_done?` · <b>урок пройден ✅</b>${c.mastery!=null?` (усвоение ${Math.round(c.mastery*100)}%)`:''}${c.finished?' — весь курс пройден 🎉':c.next_unit?` · дальше: «${esc(c.next_unit)}»`:''}`:'')+
+      `<div class="note" style="margin-top:4px">Дальше: 📚 Книга → «▶ Дальше по курсу»</div></div>`+h;
   }
   if(r.task){
     const t=r.task;
@@ -502,8 +515,33 @@ async function bookRefresh(){
   $('#b_go').max=b.total; $('#b_go').value=b.pos+1;
   if(!b.local){$('#b_preview').textContent='Файл этой книги не загружен на этом устройстве. Загрузи ту же книгу ещё раз выше, и мы продолжим с того же места.';document.querySelectorAll('[data-bk]').forEach(x=>x.disabled=true);return}
   document.querySelectorAll('[data-bk]').forEach(x=>x.disabled=false);
+  await courseRefresh();
   try{const c=await api.book.chunk(b.pos);$('#b_preview').innerHTML='<b>'+esc(c.title)+'</b><br>'+esc(c.text.slice(0,600))+(c.text.length>600?'…':'')}catch(e){$('#b_preview').textContent=e.message}
 }
+// ---- курс по учебнику ----
+async function courseRefresh(){
+  const info=await api.course.info(), ci=$('#c_info');
+  $('#c_build').hidden=!!info; $('#c_next').hidden=!info; $('#c_units').innerHTML='';
+  if(!info){ci.textContent='Макс составит оглавление по структуре книги и поведёт по урокам: читаем → грамматика → упражнения из книги → проверка. Урок засчитывается, когда пройдены все шаги.';return}
+  const done=info.units.filter(u=>u.status==='done').length;
+  ci.textContent=info.finished?`Курс пройден: ${done} из ${info.units.length} уроков 🎉`:`Пройдено уроков: ${done} из ${info.units.length}. Сейчас: ${info.next||''}`;
+  $('#c_next').hidden=info.finished;
+  const IC={todo:'⬜',doing:'🔄',done:'✅'};
+  $('#c_units').innerHTML=info.units.map(u=>`<div class="card" data-cu="${u.i}" style="cursor:pointer;padding:3px 8px"><span>${IC[u.status]||'⬜'}</span> <b>${u.i+1}.</b> ${esc(u.title)}${u.i===info.cur?' <span class="tag">сейчас</span>':''}
+    <div class="note">${u.grammar&&u.grammar.length?'грамматика: '+esc(u.grammar.join(', ')):''}${u.vocab?' · лексика: '+esc(u.vocab):''}${u.mastery!=null?' · усвоение '+Math.round(u.mastery*100)+'%':''}${u.steps?` · шагов ${u.steps_done}/${u.steps}`:''}</div></div>`).join('');
+}
+$('#c_build').onclick=async()=>{
+  const st=$('#b_status'); $('#c_build').disabled=true; st.style.color=''; st.textContent='Составляю курс…';
+  try{await api.course.build(t=>{st.textContent=t}); st.style.color='var(--known)'; st.textContent='Курс готов. Жми «▶ Дальше по курсу».'; await courseRefresh()}
+  catch(e){st.style.color='var(--unk)';st.textContent='❌ '+e.message}
+  $('#c_build').disabled=false;
+};
+$('#c_next').onclick=async()=>{
+  let n; try{n=await api.course.next()}catch(e){$('#b_status').style.color='var(--unk)';$('#b_status').textContent='❌ '+e.message;return}
+  if(n.finished){await courseRefresh();return}
+  $('#bookdlg').close(); await send(n.label,n.mode,n.extra);
+};
+$('#c_units').addEventListener('click',async e=>{const c=e.target.closest('[data-cu]');if(c){await api.course.jump(+c.dataset.cu);await courseRefresh()}});
 $('#bookbtn').onclick=async()=>{$('#bookdlg').showModal();await bookRefresh()};
 $('#b_close').onclick=()=>$('#bookdlg').close();
 $('#b_file').onchange=async e=>{

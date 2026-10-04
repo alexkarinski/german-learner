@@ -7,7 +7,7 @@ const READ_LEARN_SYSTEM = "Ты — Макс, парень, носитель р�
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-05 00:53";
+const APP_VERSION = "2026-10-05 00:58";
 const READ_PERSONA = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\n";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
@@ -39,6 +39,7 @@ const FORGOTTEN = 0.2;
       task: null, mistakes: [], stats: { tasks: 0, ok: 0, partly: 0 },   // задание от Макса, наши недавние ошибки, счёт заданий
       topic: null,                                                          // последняя разобранная тема (фокус заданий)
       book: null,                                                           // книга, по которой работаем: {id, title, total, pos, read[]}; сам файл — только на устройстве
+      course: null,                                                         // курс по учебнику: уроки, шаги, усвоение
     };
   };
   const migrate = st => {  // старые сохранения без полей памяти
@@ -52,6 +53,7 @@ const FORGOTTEN = 0.2;
     if (st.task === undefined) st.task = null;
     if (st.topic === undefined) st.topic = null;
     if (st.book === undefined) st.book = null;
+    if (st.course === undefined) st.course = null;
     if (!Array.isArray(st.mistakes)) st.mistakes = [];
     if (!st.stats) st.stats = { tasks: 0, ok: 0, partly: 0 };
     if (st.touched === undefined) st.touched = (st.log && st.log.length > 0) || st.turns > 0;
@@ -242,6 +244,7 @@ const FORGOTTEN = 0.2;
     out.mistakes = [...new Map([...(a.mistakes || []), ...(b.mistakes || [])].map(m => [`${m.t}|${m.user || m.wrong || ''}`, m])).values()].sort((p, q) => p.t - q.t).slice(-20);
     out.stats = (a.stats && b.stats && b.stats.tasks > a.stats.tasks) ? b.stats : (a.stats || b.stats);
     out.topic = !a.topic ? (b.topic || null) : !b.topic ? a.topic : (a.topic.t >= b.topic.t ? a.topic : b.topic);
+    out.course = !a.course ? (b.course || null) : !b.course ? a.course : (a.course.t >= b.course.t ? a.course : b.course);
     out.book = !a.book ? (b.book || null) : !b.book ? a.book
       : a.book.id === b.book.id ? { ...(a.book.t >= b.book.t ? a.book : b.book), read: [...new Set([...(a.book.read || []), ...(b.book.read || [])])] }
       : (a.book.t >= b.book.t ? a.book : b.book);
@@ -436,7 +439,9 @@ const FORGOTTEN = 0.2;
     const t = state.task, pend = t && !t.done ? `\nТы предложил(а) другу задание и ждёшь его ответа: «${t.task_ru} ${t.task_de || ''}»` : '';
     const mist = (state.mistakes || []).length ? '\nНаши недавние ошибки: ' + state.mistakes.slice(-4).map(m => `${m.wrong || m.user || ''} → ${m.right || m.correction || ''}`).join('; ') : '';
     const st = (state.stats && state.stats.tasks ? `\nЗаданий вместе: ${state.stats.tasks}, друг справился верно: ${state.stats.ok}.` : '') +
-      (state.book ? `\nМы вместе работаем по книге «${state.book.title}»: сейчас фрагмент ${state.book.pos + 1} из ${state.book.total}, прочитано ${state.book.read.length}.` : '');
+      (state.book ? `\nМы вместе работаем по книге «${state.book.title}»: сейчас фрагмент ${state.book.pos + 1} из ${state.book.total}, прочитано ${state.book.read.length}.` : '') +
+      (state.course && state.book && state.course.bookId === state.book.id ? (() => { const c = state.course, u = c.units[c.cur];
+        return `\nПроходим эту книгу как курс: уроков ${c.units.length}, пройдено ${c.units.filter(x => x.status === 'done').length}` + (u ? `, сейчас урок ${u.i + 1} «${u.title}»` : '') + '.'; })() : '');
     return `ПАМЯТЬ О ПРОШЛОМ (это ваша общая жизнь, ты помнишь это сам; в начале запроса — последние реплики разговора)\nДневник: ${story}\nНедавно учили и как:\n${learned}${plan}${mist}${st}${pend}`;
   }
   const recentText = () => state.chat.length
@@ -730,7 +735,7 @@ const FORGOTTEN = 0.2;
       return readTurn(msg, `Источник: ${url}\n${rest ? 'Вопрос собеседника: ' + rest + '\n' : ''}\n${article}`);
     }
     if (bookText && mode === 'read') return readTurn(msg, `Источник: книга «${(state.book || {}).title || ''}»${extra.title ? ', ' + extra.title : ''}\n${bookText}`);
-    if (mode === 'task') return taskTurn(bookText);
+    if (mode === 'task') return taskTurn(bookText, extra && extra.course);
     if (mode === 'topic' || (!mode && !url && isTopicAsk(msg))) return topicTurn(msg);
     if (mode === 'check' || (!mode && /^\s*(макс[,\s]+)?проверь(те)?(?=[\s:,—-]|$)/i.test(msg))) return checkTurn(msg);   // не \b: он не понимает кириллицу
     if (state.task && !state.task.done && mode !== 'chat' && mode !== 'grammar' && mode !== 'read' && !url && (mode === 'answer' || (!mode && looksLikeAnswer(msg) && !isGrammarAsk(msg)))) return answerTurn(msg);
@@ -1085,7 +1090,7 @@ const FORGOTTEN = 0.2;
   const mistakesText = () => (state.mistakes || []).length
     ? 'НАШИ НЕДАВНИЕ ОШИБКИ:\n' + state.mistakes.slice(-5).map(m => `  • ${m.wrong || m.user || ''} → ${m.right || m.correction || ''}${m.why ? ' (' + m.why + ')' : ''}`).join('\n') + '\n\n' : '';
 
-  async function taskTurn(bookText) {
+  async function taskTurn(bookText, courseRef) {
     const f = pickFocus();
     const bookPart = bookText ? `ФРАГМЕНТ КНИГИ «${(state.book || {}).title || ''}» (задание должно быть ПО НЕМУ: возьми из него упражнение, если оно там есть, или составь по его материалу; материал можно цитировать в task_de, в том числе с незнакомыми словами; тема задания — одна):\n${bookText.slice(0, 2400)}\n\n` : '';
     const focusText = `ФОКУС (что нам пора повторить или подтянуть):\n  слова: ${f.words.join(', ') || '—'}\n  правила: ${f.rules.join('; ') || '—'}\n\n`;
@@ -1101,11 +1106,13 @@ const FORGOTTEN = 0.2;
     const now = Date.now();
     state.task = { id: 't' + now.toString(36), t: now, kind: t.kind || 'build_sentence', intro_ru: t.intro_ru || '', task_ru: t.task_ru || '', task_de: t.task_de || '',
       how_ru: t.how_ru || 'Напиши ответ одним сообщением.', example_ru: t.example_ru || '',
-      hint_ru: t.hint_ru || '', focus: (t.focus || []).slice(0, 4), my_answer_de: t.my_answer_de || '', hack_ru: t.hack_ru || '', done: false };
+      hint_ru: t.hint_ru || '', focus: (t.focus || []).slice(0, 4), my_answer_de: t.my_answer_de || '', hack_ru: t.hack_ru || '', done: false,
+      course: courseRef || null };
     state.turns++;
     const reply = { comprehension: [], learning: [], lookups: [], reply_de: '', reply_used: [], reply_gloss_ru: '', review_request: null,
       task: { id: state.task.id, kind: state.task.kind, kind_ru: KIND_RU[state.task.kind] || '', intro_ru: state.task.intro_ru, task_ru: state.task.task_ru,
         task_de: state.task.task_de, how_ru: state.task.how_ru, example_ru: state.task.example_ru, hint_ru: state.task.hint_ru, focus: state.task.focus } };
+    if (courseRef) reply.course = courseBanner(courseRef);
     remember('Дай задание', `Предложил задание (${state.task.kind}): ${state.task.task_ru} ${state.task.task_de}`);
     persist();
     return { reply, tokens: [], warning: null };
@@ -1149,6 +1156,7 @@ const FORGOTTEN = 0.2;
     const wordsOnly = { learning: (react.learning || []).filter(i => i.kind === 'word').slice(0, 3), reply_used: react.reply_used || [] };
     const sessions = applyLearning(wordsOnly);
     task.done = true; task.verdict = u.verdict;
+    if (task.course) courseStepDone(task.course, u.verdict === 'ok');   // шаг курса пройден: упражнение или проверка усвоения
     state.turns++;
     const reply = { comprehension: [], learning: wordsOnly.learning, lookups: [], reply_de: react.reply_de || '', reply_used: react.reply_used || [],
       reply_gloss_ru: react.reply_gloss_ru || '', review_request: null,
@@ -1156,6 +1164,7 @@ const FORGOTTEN = 0.2;
       taskResult: { kind: task.kind, task_ru: task.task_ru, task_de: task.task_de, user: msg, verdict: u.verdict, errors: u.errors || [], correction: u.correction || '',
         max_answer: task.my_answer_de, max_verdict: mx ? mx.verdict : '', max_errors: mx ? (mx.errors || []) : [], max_correction: mx ? (mx.correction || '') : '',
         hack_ru: task.hack_ru, react_ru: react.reply_ru || '', tip_ru: react.tip_ru || '', next_ru: react.next_ru || '', touched, stats: { ...state.stats } } };
+    if (task.course) reply.course = courseBanner(task.course);
     const tokens = annotate(reply, new Set());
     remember(msg, `Разобрали задание: ${u.verdict}. ${react.reply_ru || ''}`.slice(0, 400));
     persist(); notifyTelegram(reply);
@@ -1352,6 +1361,100 @@ const FORGOTTEN = 0.2;
     },
     remove: async () => { if (state.book) { try { await bookDel(state.book.id); } catch { /* ничего */ } } state.book = null; persist(); return true; },
   };
+  // ---------- курс по учебнику: Макс ведёт по урокам шаг за шагом ----------
+  // Структура определяется по книге (заголовки «Lektion/Kapitel…», главы EPUB/FB2, иначе равные части), названия и темы уроков
+  // даёт один пакетный запрос к модели. Шаги урока: прочитать до 3 фрагментов → грамматика → 2 упражнения из книги → 3 проверки
+  // усвоения. Урок засчитывается, когда пройдены все шаги; слабое усвоение (<50%) возвращает его темы в фокус заданий.
+  const COURSE_HEAD = /^\s*(Lektion|Kapitel|Einheit|Thema|Modul|Unit|Lesson|Teil|Урок|Глава|Тема)\s*\d+/im;
+  const GRAM_MARK = /\b(Regel|Grammatik|Merke|Kasus|Dativ|Akkusativ|Nominativ|Genitiv|Perfekt|Präteritum|Konjunktiv|Passiv|Nebensatz|Adjektivendung|Artikel|Verb|Präposition|Futur|Relativsatz|Imperativ)\w*/gi;
+  const EX_MARK = /(Übung|Aufgabe|Ergänze|Ergänzen|Setze|Bilde|Kreuze|Ordne|Schreibe|Antworte|упражнени)/gi;
+  const countRe = (re, s) => (s.match(re) || []).length;
+  const COURSE_OUTLINE_SYSTEM = `Ты нейтральный составитель оглавления учебника немецкого (не персонаж). Тебе дают выдержки из начала каждого раздела. Для КАЖДОГО раздела верни по-русски короткое название и главные темы. Ничего не выдумывай: опирайся на выдержку. Верни ТОЛЬКО JSON-массив:
+[{"i": 0, "title": "короткое название раздела по-русски (до 6 слов)", "grammar": ["короткие названия грамматических тем раздела, если есть"], "vocab": "тема лексики в 1–3 словах или пустая строка"}]`;
+  function detectUnits(chunks) {
+    const starts = [0];
+    chunks.forEach((c, i) => {
+      if (i === 0) return;
+      const sectionChange = c.title && !/^стр\./.test(c.title) && c.title.split(' – ')[0] !== chunks[i - 1].title.split(' – ').pop();
+      if (COURSE_HEAD.test(c.text) || sectionChange) starts.push(i);   // заголовок «Lektion N» в начале любой строки фрагмента (флаг m в регулярке)
+    });
+    let units = starts.map((s, k) => ({ from: s, to: (starts[k + 1] ?? chunks.length) - 1 }));
+    if (units.length < 2 || units.length > 40) {   // нет различимых разделов или их слишком много — равные части
+      const n = Math.max(2, Math.min(units.length < 2 ? Math.ceil(chunks.length / 8) : 30, chunks.length));
+      const size = Math.ceil(chunks.length / n);
+      units = Array.from({ length: Math.ceil(chunks.length / size) }, (_, k) => ({ from: k * size, to: Math.min(chunks.length - 1, (k + 1) * size - 1) }));
+    }
+    return units.map((u, i) => ({ ...u, i }));
+  }
+  function unitSteps(u, chunks) {
+    const idx = Array.from({ length: u.to - u.from + 1 }, (_, k) => u.from + k);
+    const gram = [...idx].sort((a, b) => countRe(GRAM_MARK, chunks[b].text) - countRe(GRAM_MARK, chunks[a].text))[0];
+    let ex = idx.filter(i => countRe(EX_MARK, chunks[i].text) > 0).sort((a, b) => countRe(EX_MARK, chunks[b].text) - countRe(EX_MARK, chunks[a].text)).slice(0, 2);
+    if (!ex.length) ex = idx.slice(-2);
+    return [...idx.slice(0, 3).map(i => ({ kind: 'read', chunk: i, done: false })), { kind: 'grammar', chunk: gram, done: false },
+      ...ex.map(i => ({ kind: 'task', chunk: i, done: false })), ...[0, 1, 2].map(() => ({ kind: 'check', done: false }))];
+  }
+  const STEP_RU = { read: 'читаем вместе', grammar: 'разбираем грамматику', task: 'упражнение из книги', check: 'проверка усвоения' };
+  function courseBanner(ref) {
+    const c = state.course, u = c && c.units[ref.u]; if (!u || !u.steps) return null;
+    return { no: u.i + 1, total: c.units.length, title: u.title, step: ref.s + 1, steps: u.steps.length, kind: u.steps[ref.s] && u.steps[ref.s].kind,
+      unit_done: u.status === 'done', mastery: u.mastery ?? null, next_unit: c.units[c.cur] && c.units[c.cur].status !== 'done' ? c.units[c.cur].title : null,
+      finished: c.units.every(x => x.status === 'done') };
+  }
+  function courseStepDone(ref, ok) {
+    const c = state.course, u = c && c.units[ref.u]; if (!u || !u.steps || !u.steps[ref.s] || u.steps[ref.s].done) return;
+    u.steps[ref.s].done = true;
+    if (u.steps[ref.s].kind === 'check') { u.check.asked++; if (ok) u.check.ok++; }
+    if (u.steps.every(s => s.done)) {
+      u.status = 'done'; u.mastery = u.check.asked ? Math.round(u.check.ok / u.check.asked * 100) / 100 : null;
+      c.cur = Math.min(c.units.length - 1, ref.u + 1);
+      if (u.mastery !== null && u.mastery < 0.5 && (u.grammar || []).length)   // усвоили слабо — темы урока возвращаются в фокус заданий
+        state.topic = { t: Date.now(), title: u.title, rules: u.grammar.filter(g => state.grammar[g] !== undefined) };
+    }
+    c.t = Date.now();
+  }
+  const courseApi = {
+    info: async () => {
+      await ready; const c = state.course; if (!c || !state.book || c.bookId !== state.book.id) return null;
+      const u = c.units[c.cur], s = u && u.steps ? u.steps.findIndex(x => !x.done) : 0;
+      return { units: c.units.map(x => ({ i: x.i, title: x.title, status: x.status, grammar: x.grammar, vocab: x.vocab, mastery: x.mastery ?? null, steps_done: (x.steps || []).filter(y => y.done).length, steps: (x.steps || []).length })),
+        cur: c.cur, finished: c.units.every(x => x.status === 'done'),
+        next: u ? `Урок ${u.i + 1} «${u.title}», ${u.steps ? STEP_RU[u.steps[Math.max(0, s)].kind] : 'начинаем урок'}` : null };
+    },
+    build: async progress => {
+      await ready; const b = state.book && await bookGet(state.book.id);
+      if (!b) throw new Error('Файл книги не загружен на этом устройстве. Загрузи книгу, и тогда составим курс.');
+      const units = detectUnits(b.chunks);
+      for (let k = 0; k < units.length; k += 12) {
+        const part = units.slice(k, k + 12);
+        if (progress) progress(`Составляю оглавление: ${Math.min(k + 12, units.length)} из ${units.length}…`);
+        let out = [];
+        try { out = await askJson(COURSE_OUTLINE_SYSTEM, [{ role: 'user', content: part.map(u => `#${u.i}: ${b.chunks[u.from].text.slice(0, 700)}`).join('\n\n') }], true); }
+        catch (e) { if (/API|ключ/.test(e.message)) throw e; }
+        const by = Object.fromEntries((out || []).map(x => [x.i, x]));
+        part.forEach(u => { const o = by[u.i] || {}; u.title = (o.title || b.chunks[u.from].title || `Часть ${u.i + 1}`).slice(0, 70); u.grammar = (o.grammar || []).slice(0, 5); u.vocab = o.vocab || ''; });
+      }
+      units.forEach(u => { u.status = 'todo'; u.steps = null; u.check = { asked: 0, ok: 0 }; });
+      state.course = { bookId: state.book.id, t: Date.now(), cur: 0, units };
+      persist(); return courseApi.info();
+    },
+    next: async () => {
+      await ready; const c = state.course; if (!c) throw new Error('Курс ещё не составлен.');
+      const b = await bookGet(state.book.id); if (!b) throw new Error('Файл книги не загружен на этом устройстве.');
+      let u = c.units[c.cur];
+      while (u && u.status === 'done' && c.cur < c.units.length - 1) u = c.units[++c.cur];
+      if (!u || u.status === 'done') return { finished: true };
+      if (!u.steps) { u.steps = unitSteps(u, b.chunks); u.status = 'doing'; c.t = Date.now(); persist(); }
+      const si = u.steps.findIndex(x => !x.done), s = u.steps[si];
+      const head = `🗺 Урок ${u.i + 1}/${c.units.length} «${u.title}» · шаг ${si + 1}/${u.steps.length}: ${STEP_RU[s.kind]}`;
+      const ref = { u: u.i, s: si };
+      if (s.kind === 'check') return { mode: 'task', label: head, extra: { course: ref } };
+      const ch = b.chunks[s.chunk];
+      return { mode: s.kind === 'task' ? 'task' : s.kind, label: head, extra: { text: ch.text, title: ch.title, chunk: s.chunk, course: ref } };
+    },
+    jump: async i => { await ready; if (state.course) { state.course.cur = Math.max(0, Math.min(state.course.units.length - 1, i | 0)); state.course.t = Date.now(); persist(); } return courseApi.info(); },
+    reset: async () => { state.course = null; persist(); return true; },
+  };
   const nudge = () => {
     const t = state.task;
     if (t && !t.done) return `Ты не ответил на моё задание 🙂 Жми на него выше — или попроси другое (🎯).`;
@@ -1386,9 +1489,12 @@ const FORGOTTEN = 0.2;
     skipTask: async () => { await ready; if (state.task) { state.task.done = true; persist(); } return true; },
     feed: async () => { await ready; return feed.filter(i => (i.e | 0) === (state.fepoch | 0)); },
     clearFeed: async () => { feed = []; save(LS_FEED, feed); if (CS) { clearTimeout(syncTimer); syncTimer = setTimeout(queueSync, 300); } return true; },
-    book: bookApi,
+    book: bookApi, course: courseApi,
     chat: async (msg, mode, extra) => {
       await ready; const r = await turn(msg, mode, extra);
+      if (extra && extra.course && (mode === 'read' || mode === 'grammar')) {   // чтение и грамматика засчитываются сразу, упражнения — после ответа
+        courseStepDone(extra.course, true); r.reply.course = courseBanner(extra.course); persist();
+      }
       const d = { ...r, state: snapshot() };
       d.ids = feedAdd(msg, r);   // переписка и карточка результата сохраняются
       return d;
