@@ -140,6 +140,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <div id="s_models" style="margin-top:6px"></div>
   <button type="button" id="s_list" style="margin-top:6px;padding:5px 12px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit;font-size:13px">Показать список моделей</button>
   <label id="cloudrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_cloud" style="width:auto;margin-top:3px"><span>☁ Хранить настройки (в том числе ключ) в облаке Telegram: ввести один раз, и они подтянутся на всех ваших устройствах и не сбросятся. Снимите галочку, если не хотите, чтобы ключ был в облаке.</span></label>
+  <label id="webrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_web" style="width:auto;margin-top:3px"><span>🌐 Ученик ищет слова в интернете (Wiktionary, переводчик MyMemory) и открывает статьи по ссылке (через r.jina.ai). Наружу уходят только искомые слова и адрес ссылки. Снимите галочку, чтобы он пользовался только моделью.</span></label>
   <div id="webonly" hidden>
     <label>Токен Telegram-бота — пересылать записи об обучении в ваш чат <span id="tghint"></span></label>
     <input id="s_tgtoken" type="password" autocomplete="off" placeholder="токен от @BotFather">
@@ -150,6 +151,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <button type="button" id="s_restore" style="padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit">Загрузить из файла</button>
       <input type="file" id="s_file" accept=".json,application/json" hidden>
     </div>
+    <button type="button" id="s_clearfeed" style="margin-top:12px;padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit">Очистить переписку на экране</button>
     <button type="button" id="s_test" style="margin-top:12px;padding:7px 14px;border:1px solid var(--accent);border-radius:8px;background:none;color:var(--accent);cursor:pointer;font:inherit">Проверить подключение</button>
     <button type="button" id="s_export" style="margin-top:12px;padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit">Экспорт журнала обучения</button>
   </div>
@@ -266,7 +268,9 @@ function botHtml(d){
       `<div class="card"><b>${esc(x.article?x.article+' ':'')}${esc(x.lemma)}</b> <span class="note">${esc(x.pos||'')}</span>
        <div>${esc(x.ru)} / ${esc(x.uk)}${x.plural&&x.plural!=='—'?' · мн.ч. '+esc(x.plural):''}</div>
        ${x.example_de?`<div class="note">${esc(x.example_de)} — ${esc(x.example_ru||'')}</div>`:''}
-       ${x.note?`<div class="note">${esc(x.note)}</div>`:''}</div>`).join('');
+       ${x.note?`<div class="note">${esc(x.note)}</div>`:''}
+       <div class="note">${x.source==='wiktionary'?'🌐 нашёл в интернете: '+(x.sources||[]).map(u=>`<a href="${esc(u)}" target="_blank" rel="noopener">Wiktionary</a>`).join(', ')+' + переводчик'
+         :x.source==='machine'?'🌐 нашёл в интернете: машинный перевод (Wiktionary слова не знает)':'🧠 из словаря модели, без источника в интернете'}</div></div>`).join('');
   }
   if(r.learned_summary)h+=`<div class="sec">📚 Что выучил и как</div><div class="sum">${esc(r.learned_summary)}</div>`;
   if((r.learning||[]).length){
@@ -302,15 +306,35 @@ function botHtml(d){
 
 function add(cls,html){const e=document.createElement('div');e.className=cls;e.innerHTML=html;$('#msgs').append(e);e.scrollIntoView({block:'end'});return e}
 
+// ---- сохранённая переписка: после запуска возвращаются реплики и карточки результатов ----
+const shown=new Set();
+function renderFeedItem(it){
+  if(shown.has(it.id))return; shown.add(it.id);
+  if(it.k==='me')add('me',esc(it.text.length>600?it.text.slice(0,600)+'…':it.text));
+  else if(it.d)add('bot',botHtml(it.d));
+}
+async function restoreFeed(){
+  if(!api.feed)return;   // десктопная версия лентой не пользуется
+  const items=await api.feed();
+  if(!items.length)return;
+  const intro=$('#msgs').firstElementChild; if(intro&&intro.classList.contains('note')&&!intro.classList.contains('bot'))intro.remove();
+  items.forEach(renderFeedItem);
+  $('#msgs').lastElementChild?.scrollIntoView({block:'end'});
+}
+restoreFeed();
+window.addEventListener('learner-sync',()=>{ if(api.feed)api.feed().then(items=>{const fresh=items.filter(i=>!shown.has(i.id));if(fresh.length){fresh.forEach(renderFeedItem);}}); });
+
 async function send(m,mode){
   $('#in').value=''; $('#go').disabled=true; $('#readbtn').disabled=true;
   add('me',esc(m.length>600?m.slice(0,600)+'…':m));
   const reading=mode==='read'||(!mode&&(m.match(/[A-Za-zÄÖÜäöüß]+/g)||[]).length>=14);
-  const wait=add('bot note',reading?'Читаю текст, сверяюсь с записной книжкой…':'Ученик думает…');
-  mood('think'); bubble(reading?'Читаю… Посмотрим, что я тут понимаю.':'Хм… (если не знаю слова — загляну в словарь)',true);
+  const hasUrl=/https?:\/\/\S+/.test(m), gram=mode==='grammar';
+  const wait=add('bot note',gram?'Разбираю грамматику: перевожу, ищу, чему надо научиться…':hasUrl?'Открываю ссылку и читаю статью…':reading?'Читаю текст, сверяюсь с записной книжкой…':'Ученик думает…');
+  mood('think'); bubble(gram?'Так, давайте разберёмся, как это переводится и чему мне надо научиться…':hasUrl?'Открываю статью…':reading?'Читаю… Посмотрим, что я тут понимаю.':'Хм… (если не знаю слова — загляну в словарь)',true);
   try{
     const d=await api.chat(m,mode);
     wait.className='bot'; wait.innerHTML=botHtml(d); renderState(d.state);
+    if(d.ids){shown.add(d.ids.user);shown.add(d.ids.bot)}
     const r=d.reply, g=r.reading;
     const unknown=(r.comprehension||[]).some(c=>c.status==='unknown');
     const learnedAny=((r.study||{}).sessions||[]).some(s=>s.learned);
@@ -333,6 +357,7 @@ $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе п�
 $('#reset').onclick=async()=>{
   if(!confirm('Сбросить память ученика до начального состояния?'))return;
   prevKnown=null; renderState(await api.reset());
+  if(api.feed){shown.clear();$('#msgs').innerHTML='<div class="note">Память сброшена. Начните разговор заново.</div>'}
 };
 api.state().then(renderState);
 
@@ -345,6 +370,7 @@ async function openSettings(){
   $('#s_tgtoken').value=''; $('#s_tgchat').value=s.tg_chat||'';
   $('#tghint').textContent=s.has_tg?'(сохранён; пусто = не менять)':'';
   $('#ver').hidden=!(window.api&&api.version); if(window.api&&api.version)$('#ver').textContent='Версия приложения: '+api.version+' · '+location.host;
+  $('#webrow').hidden=!window.api; $('#s_web').checked=s.web_search!==false;
   $('#cloudrow').hidden=!s.cloud; $('#s_cloud').checked=s.cloud_key!==false; $('#s_test').hidden=!window.api;
   $('#s_provider').value=s.provider;$('#s_url').value=s.base_url;$('#s_model').value=s.model;$('#s_key').value='';
   showEff();
@@ -391,7 +417,7 @@ $('#s_export').onclick=async()=>{
 };
 $('#preset').onchange=e=>{const p=PRESETS[e.target.value];if(!p)return;$('#s_provider').value=p[0];$('#s_url').value=p[1];$('#s_model').value=p[2]};
 const formSettings=()=>({provider:$('#s_provider').value,base_url:$('#s_url').value,model:$('#s_model').value,api_key:$('#s_key').value,
-  tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value,cloud_key:$('#s_cloud').checked});
+  tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value,cloud_key:$('#s_cloud').checked,web_search:$('#s_web').checked});
 $('#s_save').onclick=async()=>{
   const s=await api.saveSettings(formSettings());
   if(s.error)$('#serr').textContent=s.error;else $('#dlg').close();
@@ -411,6 +437,11 @@ $('#preset').addEventListener('change',showEff);
 // типичные названия для автоподбора, когда провайдер не отдаёт список моделей браузеру
 const MODEL_GUESSES=['deepseek-v4-flash-0731','glm-5.3','kimi-k2.6','qwen3.8-27b','deepseek-v4-pro-0813','minimax-m3',
   'intern-s2','Atria-Dawn-Preview','Agents-A1','deepseek-v4-flash-vision','deepseek-v4-flash','claude-sonnet-5-5'];
+$('#s_clearfeed').onclick=async()=>{
+  if(!confirm('Очистить переписку? Память ученика (слова, грамматика) останется.'))return;
+  await api.clearFeed(); shown.clear(); $('#msgs').innerHTML='<div class="note">Переписка очищена. Память ученика сохранена.</div>';
+  $('#serr').style.color='var(--known)'; $('#serr').textContent='Переписка очищена';
+};
 $('#s_list').onclick=async()=>{
   const e=$('#serr'), box=$('#s_models'); e.style.color=''; e.textContent='Запрашиваю список моделей…'; box.innerHTML='';
   await api.saveSettings(formSettings());

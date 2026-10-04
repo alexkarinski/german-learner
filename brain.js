@@ -7,7 +7,7 @@ const READ_LEARN_SYSTEM = "Ты симулируешь ОДНОГО конкре
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты симулируешь ОДНОГО конкретного человека: носителя русского и украинского, который учит немецкий (уровень ~B1).\nТы не всезнающая модель и не учитель. Твой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-05 00:06";
+const APP_VERSION = "2026-10-05 00:12";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
 /* Браузерная версия «мозга» ученика. Порт learner.py + server.py на JS.
@@ -32,7 +32,7 @@ const FORGOTTEN = 0.2;
       gmeta: Object.fromEntries(Object.keys(SEED.grammar).map(r => [r, { last: now, stab: logUniform(30, 120) }])),
       log: [],
       turns: 0, last_ask: -99,   // счётчик реплик и когда ученик в последний раз просил повторить
-      epoch: 0, touched: false,  // для синхронизации: поколение (сброс/перемотка) и «ученика уже трогали»
+      epoch: 0, fepoch: 0, touched: false,  // для синхронизации: поколение (сброс/перемотка), поколение ленты (только сброс) и «ученика уже трогали»
       chat: [], story: '', chat_t: 0,   // последние реплики и «дневник» прошлого: переживают смену модели и перезапуск
     };
   };
@@ -42,6 +42,7 @@ const FORGOTTEN = 0.2;
     if (typeof st.story !== 'string') st.story = '';
     if (st.chat_t === undefined) st.chat_t = 0;
     if (st.epoch === undefined) st.epoch = 0;
+    if (st.fepoch === undefined) st.fepoch = 0;
     if (st.touched === undefined) st.touched = (st.log && st.log.length > 0) || st.turns > 0;
     if (st.turns === undefined) st.turns = 0;
     if (st.last_ask === undefined) st.last_ask = -99;
@@ -76,7 +77,7 @@ const FORGOTTEN = 0.2;
     for (const m of Object.values(state.gmeta)) m.last -= sh;
   };
   let settings = { provider: 'anthropic', base_url: '', api_key: '', model: 'claude-sonnet-5-5',
-                   tg_token: '', tg_chat: '', effort: 3, cloud_key: true, ...load(LS_SET, {}) };
+                   tg_token: '', tg_chat: '', effort: 3, cloud_key: true, web_search: true, ...load(LS_SET, {}) };
   let history = [];
 
   // ---------- просьба повторить: ученик сам замечает, что забывает ----------
@@ -224,7 +225,80 @@ const FORGOTTEN = 0.2;
     out.last_ask = Math.max(a.last_ask | 0, b.last_ask | 0);
     const newer = (a.chat_t | 0) >= (b.chat_t | 0) ? a : b;   // диалог и «дневник» берём у того, где разговор был позже
     out.chat = newer.chat || []; out.story = newer.story || ''; out.chat_t = newer.chat_t | 0;
+    out.fepoch = Math.max(a.fepoch | 0, b.fepoch | 0);
     return out;
+  }
+
+  // ---------- переписка и карточки результатов: сохраняются между запусками и синхронизируются ----------
+  // Лента хранится отдельно от «памяти ученика»: локально (до FEED_MAX записей) и в облаке (последние FEED_CLOUD, со сжатием).
+  // Записи несут fepoch: после «Сбросить память» старые записи на всех устройствах отбрасываются, а не воскресают при слиянии.
+  const LS_FEED = 'learner_feed_v1', FEED_MAX = 40, FEED_CLOUD = 24;
+  let feed = (() => { const f = load(LS_FEED, []); return Array.isArray(f) ? f : []; })();
+  function leanReply(r) {   // всё нужное для отрисовки карточки, без служебного
+    const o = JSON.parse(JSON.stringify(r || {}));
+    delete o.reply_used; delete o.lookup; delete o.grammar_used;
+    if (o.reading && o.reading.words) o.reading.words = o.reading.words.slice(0, 40);
+    if (o.lookups) o.lookups = o.lookups.map(({ lemma, pos, article, plural, ru, uk, example_de, example_ru, note, source, sources }) =>
+      ({ lemma, pos, article, plural, ru, uk, example_de, example_ru, note, source, sources }));
+    return o;
+  }
+  function feedAdd(msg, d) {
+    const t = Date.now(), e = state.fepoch | 0, rnd = Math.random().toString(36).slice(2, 6);
+    const u = { id: `${t}u${rnd}`, t, e, k: 'me', text: String(msg).slice(0, 1500) };
+    const b = { id: `${t + 1}b${rnd}`, t: t + 1, e, k: 'bot', d: { reply: leanReply(d.reply), tokens: d.tokens, warning: d.warning } };
+    feed.push(u, b);
+    if (feed.length > FEED_MAX) feed.splice(0, feed.length - FEED_MAX);
+    save(LS_FEED, feed);
+    if (CS) { clearTimeout(syncTimer); syncTimer = setTimeout(queueSync, 1500); }
+    return { user: u.id, bot: b.id };
+  }
+  async function pack(s) {   // gzip + base64 (чистый ASCII); если браузер не умеет сжимать — просто ASCII-экранирование
+    if (typeof CompressionStream !== 'undefined') {
+      try {
+        const buf = new Uint8Array(await new Response(new Blob([s]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+        let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+        return 'z:' + btoa(bin);
+      } catch { /* запасной вариант ниже */ }
+    }
+    return 'j:' + s.replace(/[\u0080-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  }
+  async function unpack(p) {
+    if (p.startsWith('z:')) {
+      if (typeof DecompressionStream === 'undefined') throw dataError('это устройство не умеет распаковывать ленту');
+      const bin = atob(p.slice(2));
+      return await new Response(new Blob([Uint8Array.from(bin, c => c.charCodeAt(0))]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    }
+    return p.slice(2);
+  }
+  let feedPtr = null;
+  async function loadFeedCloud() {
+    const ptr = (await csGet(['fptr'])).fptr;
+    if (!ptr) return null;
+    let p; try { p = JSON.parse(ptr); } catch { throw dataError('указатель ленты повреждён'); }
+    feedPtr = p;
+    const keys = Array.from({ length: p.n }, (_, i) => `f${p.v}_${i}`), vals = await csGet(keys);
+    if (keys.some(k => !vals[k])) throw dataError('в облаке не хватает частей ленты');
+    try { return JSON.parse(await unpack(keys.map(k => vals[k]).join(''))); } catch (e) { throw e.dataError ? e : dataError('лента в облаке не читается'); }
+  }
+  async function saveFeedCloud() {
+    const s = await pack(JSON.stringify(feed.slice(-FEED_CLOUD))), n = Math.ceil(s.length / CHUNK), v = Date.now().toString(36);
+    const keys = Array.from({ length: n }, (_, i) => `f${v}_${i}`);
+    for (let i = 0; i < n; i += 4) await csSet(Object.fromEntries(keys.slice(i, i + 4).map((k, j) => [k, s.slice((i + j) * CHUNK, (i + j + 1) * CHUNK)])));
+    await csSet({ fptr: JSON.stringify({ v, n }) });   // указатель последним
+    const old = feedPtr; feedPtr = { v, n };
+    if (old) { try { await csDel(Array.from({ length: old.n }, (_, i) => `f${old.v}_${i}`)); } catch { /* уборка не критична */ } }
+  }
+  async function syncFeed() {
+    let cloud = null;
+    try { cloud = await loadFeedCloud(); } catch (e) { if (!e.dataError) throw e; console.warn('лента в облаке повреждена, перезапишу:', e.message); }
+    const fe = state.fepoch | 0, map = new Map();
+    for (const it of [...(cloud || []), ...feed]) if ((it.e | 0) === fe) map.set(it.id, it);
+    const merged = [...map.values()].sort((a, b) => a.t - b.t).slice(-FEED_MAX);
+    const changed = merged.length !== feed.length || merged.some((m, i) => m.id !== feed[i].id);
+    feed = merged; save(LS_FEED, feed);
+    const have = new Set((cloud || []).map(i => i.id));
+    if (!cloud || feed.slice(-FEED_CLOUD).some(i => !have.has(i.id))) await saveFeedCloud();
+    if (changed) window.dispatchEvent(new Event('learner-feed'));
   }
 
   let syncInfo = { enabled: !!CS, at: null, ok: null, error: null };
@@ -239,7 +313,9 @@ const FORGOTTEN = 0.2;
       if (state.log.length > 200) state.log = state.log.slice(-200);
       save(LS_STATE, state);
       await saveCloud();
-      syncInfo = { enabled: true, at: Date.now(), ok: true, error: null };
+      let feedError = null;
+      try { await syncFeed(); } catch (e) { feedError = String((e && e.message) || e); console.warn('feed sync:', e); }
+      syncInfo = { enabled: true, at: Date.now(), ok: true, error: null, feedError };
     } catch (e) {
       syncInfo = { enabled: true, at: syncInfo.at, ok: false, error: String((e && e.message) || e) };
     }
@@ -393,14 +469,86 @@ const FORGOTTEN = 0.2;
                      ...review.grammar.map(g => `правило «${g.rule}» (сейчас ${g.now})`)];
       content += '\n\nПОРА ПОВТОРИТЬ (ты сам замечаешь, что это слабеет): ' + items.join('; ');
     }
-    if (dictionary?.length) content += '\n\nРЕЗУЛЬТАТ ПОИСКА В СЛОВАРЕ (слова из сообщения собеседника, которых ты не знал; ты только что посмотрел их в словаре; теперь честно скажи, что понял из его сообщения, и ответь):\n' + JSON.stringify(dictionary, null, 1);
+    if (dictionary?.length) content += `\n\nРЕЗУЛЬТАТ ПОИСКА (слова из сообщения собеседника, которых ты не знал; ${sourceNote(dictionary)}; теперь честно скажи, что понял из его сообщения, и ответь):\n` + JSON.stringify(dictionary.map(({ sources, ...d }) => d), null, 1);
     if (feedback) content += `\n\nПРОВЕРКА НЕ ПРОЙДЕНА, ИСПРАВЬ reply_de:\n${feedback}`;
     return askJson(SYSTEM, [...state.chat, { role: 'user', content }]);
   }
 
+  // ---------- поиск в интернете: Wiktionary + открытый переводчик (все три сервиса разрешают запросы из браузера) ----------
+  // Статья составляется ТОЛЬКО по найденным материалам, источник показывается. Нет сети или слова нет в Wiktionary —
+  // запасной вариант: словарь на модели (помечается «из модели, без источника»).
+  const DICT_WEB_SYSTEM = `Ты составитель словарной статьи немецкого слова (не персонаж). Тебе дают результаты поиска в интернете: статьи Wiktionary (определения по-английски) и машинный перевод слова. Используй ТОЛЬКО эти материалы, ничего не выдумывай. Машинный перевод может быть неточным (например, падежная форма вместо слова): сверяй его с определениями Wiktionary. Если запрос — изменённая форма слова (läuft, Ordnungen), в lemma укажи начальную форму. Верни ТОЛЬКО JSON-объект:
+{"lemma": "начальная форма", "pos": "часть речи", "article": "der/die/das, только если ясно из материалов, иначе пустая строка", "plural": "", "ru": "перевод на русский, кратко", "uk": "переклад українською, коротко", "example_de": "простой пример (A2), можно составить самому из этого слова", "example_ru": "перевод примера", "note": "полезное замечание из материалов: значения, форма слова"}
+Если материалов не хватает даже для перевода, верни {"lemma": ""}.`;
+  const fetchTimeout = async (url, ms = 9000, opts = {}) => {
+    const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
+    try { return await fetch(url, { ...opts, signal: c.signal }); } finally { clearTimeout(t); }
+  };
+  const stripHtml = s => String(s || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').trim();
+  async function wikt(term) {
+    const variants = [...new Set([term, term.charAt(0).toUpperCase() + term.slice(1), term.toLowerCase()])];
+    for (const t of variants) {
+      try {
+        const r = await fetchTimeout('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(t));
+        if (!r.ok) continue;
+        const de = (await r.json()).de;
+        if (!de || !de.length) continue;
+        return { title: t, url: 'https://en.wiktionary.org/wiki/' + encodeURIComponent(t) + '#German',
+          entries: de.slice(0, 3).map(e => ({ pos: e.partOfSpeech, definitions: (e.definitions || []).slice(0, 4).map(d => stripHtml(d.definition)).filter(Boolean) })) };
+      } catch { /* пробуем следующий вариант написания */ }
+    }
+    return null;
+  }
+  async function mt(text, lang) {
+    try {
+      const r = await fetchTimeout('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=de%7C' + lang);
+      const j = await r.json(), t = j.responseData && j.responseData.translatedText;
+      if (Number(j.responseStatus) === 200 && t && t.toLowerCase() !== text.toLowerCase()) return t;
+    } catch { /* нет сети или лимит */ }
+    return '';
+  }
+  async function webEntry(term) {
+    if (settings.web_search === false) return null;
+    const w = await wikt(term);
+    let lemmaEntry = null;
+    const m = w && w.entries.map(e => e.definitions[0] || '').join(' ').match(/\bof\s+([A-Za-zÄÖÜäöüß-]+)/);   // «third-person singular present of laufen»
+    if (m && m[1].toLowerCase() !== term.toLowerCase()) lemmaEntry = await wikt(m[1]);
+    const base = (lemmaEntry && lemmaEntry.title) || (w && w.title) || term;
+    const [ru, uk] = await Promise.all([mt(base, 'ru'), mt(base, 'uk')]);
+    if (!w && !ru && !uk) return null;
+    const material = JSON.stringify({ запрос: term, wiktionary: w, wiktionary_начальная_форма: lemmaEntry, машинный_перевод_ru: ru, машинный_перевод_uk: uk });
+    const entry = await askJson(DICT_WEB_SYSTEM, [{ role: 'user', content: material }]);
+    if (!entry || !entry.lemma) return null;
+    return { ...entry, source: w ? 'wiktionary' : 'machine',
+      sources: [w && w.url, lemmaEntry && lemmaEntry.url].filter(Boolean) };
+  }
   async function dictionaryLookup(term) {
-    try { return await askJson(DICT_SYSTEM, [{ role: 'user', content: term }]); }
+    try { const e = await webEntry(term); if (e) return e; }
+    catch (e) { if (/API|ключ/.test(e.message)) throw e; /* сеть/источник недоступны — запасной вариант */ }
+    try { return { ...(await askJson(DICT_SYSTEM, [{ role: 'user', content: term }])), source: 'model', sources: [] }; }
     catch (e) { if (/API|ключ/.test(e.message)) throw e; return { lemma: '', note: 'не найдено' }; }
+  }
+  // «в интернете» для подсказки ученику: откуда пришли статьи
+  const sourceNote = dict => dict.some(d => d.source === 'wiktionary' || d.source === 'machine')
+    ? 'ты нашёл их в интернете (Wiktionary, переводчик)' : 'ты посмотрел их в словаре';
+
+  // ---------- статья по ссылке: читающий прокси отдаёт текст страницы; дальше обычный режим чтения ----------
+  const DE_FUNC = new Set('der die das den dem des ein eine einen einem einer und ist sind nicht mit von zu im in auf für auch sich dass wird wurde haben hat sie er es wir ich aber oder wie bei nach aus über um am an als noch nur dann wenn auch sein war'.split(' '));
+  async function fetchArticle(url) {
+    let r;
+    try { r = await fetchTimeout('https://r.jina.ai/' + url, 30000, { headers: { Accept: 'text/plain' } }); }
+    catch { throw new Error('Не удалось открыть ссылку: нет ответа. Вставьте текст статьи вместо ссылки.'); }
+    if (!r.ok) throw new Error(`Не удалось открыть ссылку (код ${r.status}). Вставьте текст статьи вместо ссылки.`);
+    let t = await r.text();
+    t = t.replace(/^(Title|URL Source|Published Time|Markdown Content|Warning):.*$/gm, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '').replace(/[#*_>`|]/g, ' ');
+    const lines = t.split('\n').map(l => l.trim()).filter(l => l.split(/\s+/).length >= 5);   // меню и подписи отбрасываем
+    t = lines.join('\n').slice(0, 5000);
+    const toks = t.match(TOKEN) || [];
+    const share = toks.length ? toks.filter(w => DE_FUNC.has(w.toLowerCase())).length / toks.length : 0;
+    if (toks.length < 20) throw new Error('На странице не нашлось читаемого текста. Вставьте текст статьи вместо ссылки.');
+    if (share < 0.08) throw new Error('Страница, похоже, не на немецком. Пришлите ссылку на немецкий текст.');
+    return t;
   }
 
   // ---------- проверка «не говори, чего не знаешь» ----------
@@ -549,6 +697,12 @@ const FORGOTTEN = 0.2;
   const isReading = msg => { const n = (msg.match(TOKEN) || []).length; return n >= 14 || (n >= 5 && READ_HINT.test(msg)); };
 
   async function turn(msg, mode) {
+    const url = (msg.match(/https?:\/\/[^\s)>\]]+/) || [])[0];
+    if (url && settings.web_search !== false && mode !== 'chat') {   // ссылка на статью: открываем и читаем
+      const rest = msg.replace(url, '').trim();
+      const article = await fetchArticle(url);
+      return readTurn(msg, `Источник: ${url}\n${rest ? 'Вопрос собеседника: ' + rest + '\n' : ''}\n${article}`);
+    }
     if (mode === 'read' || (!mode && isReading(msg))) return readTurn(msg);
     expose(msg);                      // знакомые слова в сообщении собеседника освежаются
     const review = dueReviews();      // что пора повторить (просьба ученика сама)
@@ -602,8 +756,8 @@ const FORGOTTEN = 0.2;
   };
   const verdictOf = c => c >= 0.9 ? 'yes' : c >= 0.6 ? 'partly' : 'no';
 
-  async function readTurn(msg) {
-    const text = msg.slice(0, 6000), none = new Set();
+  async function readTurn(msg, articleText) {
+    const text = (articleText || msg).slice(0, 6000), none = new Set();
     const rowsBy = {};
     let words;
     try { words = (await jsonCall(LEMMA_SYSTEM, text)).words || []; }
@@ -628,14 +782,15 @@ const FORGOTTEN = 0.2;
     lookup = lookup.slice(0, 10);
     let dictionary = [];
     if (lookup.length) {
-      try {
-        const arr = await jsonCall(DICT_MANY_SYSTEM, lookup.join('\n'), true);
-        dictionary = lookup.map((t, i) => ({ ...arr[i], asked: t })).filter(d => d.lemma);
+      try {   // по одному слову: интернет-поиск + запасной словарь на модели; небольшими порциями, чтобы не упереться в лимиты
+        for (let i = 0; i < lookup.length; i += 4)
+          dictionary.push(...await Promise.all(lookup.slice(i, i + 4).map(async t => ({ ...(await dictionaryLookup(t)), asked: t }))));
+        dictionary = dictionary.filter(d => d.lemma);
       } catch (e) { if (/API|ключ/.test(e.message)) throw e; }
     }
     const fresh = new Set(dictionary.flatMap(d => [d.lemma.toLowerCase(), ...(d.article ? [d.article.toLowerCase()] : [])]));
     const base = `${notebookText()}\n\n${recentText()}${facts}\n\nТВОИ ПРЕДЫДУЩИЕ МЫСЛИ:\n${JSON.stringify(think)}\n\n` +
-      `СЛОВАРНЫЕ СТАТЬИ:\n${JSON.stringify(dictionary, null, 1)}\n\nСООБЩЕНИЕ СОБЕСЕДНИКА:\n${text}`;
+      `СЛОВАРНЫЕ СТАТЬИ (${sourceNote(dictionary)}):\n${JSON.stringify(dictionary.map(({ sources, ...d }) => d), null, 1)}\n\nСООБЩЕНИЕ СОБЕСЕДНИКА:\n${text}`;
     let reply = null, feedback = null, warning = null;
     for (let i = 0; i <= MAX_RETRIES; i++) {
       reply = await jsonCall(READ_LEARN_SYSTEM, base + (feedback ? `\n\nПРОВЕРКА НЕ ПРОЙДЕНА, ИСПРАВЬ reply_de:\n${feedback}` : ''));
@@ -686,13 +841,25 @@ const FORGOTTEN = 0.2;
     };
   };
   const publicSettings = () => ({ provider: settings.provider, base_url: settings.base_url, model: settings.model,
-    has_key: !!settings.api_key, effort: settings.effort, cloud: !!CS, cloud_key: settings.cloud_key !== false, has_tg: !!settings.tg_token, tg_chat: settings.tg_chat, error: settings.api_key ? null : 'Не задан API-ключ. Откройте ⚙ Настройки.', mock: false });
+    has_key: !!settings.api_key, effort: settings.effort, cloud: !!CS, cloud_key: settings.cloud_key !== false, web_search: settings.web_search !== false, has_tg: !!settings.tg_token, tg_chat: settings.tg_chat, error: settings.api_key ? null : 'Не задан API-ключ. Откройте ⚙ Настройки.', mock: false });
 
   window.api = {
     web: true, version: APP_VERSION,
     state: async () => { await ready; return snapshot(); },
-    reset: async () => { await ready; const ep = (state.epoch | 0) + 1; state = newState(); state.epoch = ep; history = []; persist(); return snapshot(); },
-    chat: async (msg, mode) => { await ready; const r = await turn(msg, mode); return { ...r, state: snapshot() }; },
+    reset: async () => {
+      await ready; const ep = (state.epoch | 0) + 1, fe = (state.fepoch | 0) + 1;
+      state = newState(); state.epoch = ep; state.fepoch = fe; history = [];
+      feed = []; save(LS_FEED, feed);   // сброс памяти — новая «жизнь»: старая переписка тоже уходит, на всех устройствах
+      persist(); return snapshot();
+    },
+    feed: async () => { await ready; return feed.filter(i => (i.e | 0) === (state.fepoch | 0)); },
+    clearFeed: async () => { feed = []; save(LS_FEED, feed); if (CS) { clearTimeout(syncTimer); syncTimer = setTimeout(queueSync, 300); } return true; },
+    chat: async (msg, mode) => {
+      await ready; const r = await turn(msg, mode);
+      const d = { ...r, state: snapshot() };
+      d.ids = feedAdd(msg, r);   // переписка и карточка результата сохраняются
+      return d;
+    },
     skip: async days => { await ready; skipDays(Math.max(0, Math.min(3650, +days || 0))); state.epoch = (state.epoch | 0) + 1; persist(); return snapshot(); },
     syncStatus: () => ({ ...syncInfo }),
     syncNow: async () => { await queueSync(); return { ...syncInfo }; },
@@ -701,8 +868,8 @@ const FORGOTTEN = 0.2;
       await ready;
       const s = JSON.parse(json);
       if (!s || typeof s.vocab !== 'object' || typeof s.grammar !== 'object') throw new Error('Это не файл резервной копии ученика');
-      const ep = Math.max(state.epoch | 0, s.epoch | 0) + 1;
-      state = migrate(s); state.epoch = ep; history = []; persist();
+      const ep = Math.max(state.epoch | 0, s.epoch | 0) + 1, fe = state.fepoch | 0;
+      state = migrate(s); state.epoch = ep; state.fepoch = fe; history = []; persist();   // переписка при загрузке копии остаётся
       return snapshot();
     },
     getSettings: async () => publicSettings(),
@@ -714,6 +881,7 @@ const FORGOTTEN = 0.2;
       if ('tg_chat' in o) settings.tg_chat = String(o.tg_chat).trim();
       if ('effort' in o) settings.effort = Math.max(0, Math.min(8, parseInt(o.effort, 10) || 0));
       if ('cloud_key' in o) settings.cloud_key = !!o.cloud_key;
+      if ('web_search' in o) settings.web_search = !!o.web_search;
       save(LS_SET, settings);
       if (CS) await saveCfg().catch(() => {});
       return publicSettings();
