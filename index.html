@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ученик немецкого</title>
+<title>Макс — учим немецкий</title>
 <style>
 :root{
   --bg:#f6f5f1;--panel:#fff;--ink:#1f2328;--dim:#6b7280;--line:#e3e1da;
@@ -24,7 +24,7 @@ main{flex:1;display:grid;grid-template-columns:1fr 340px;min-height:0}
 #nb{display:none}
 @media(max-width:800px){main{grid-template-columns:1fr}aside{display:none}
   #nb{display:inline-block}#stat{display:none}
-  header{padding:8px 10px;gap:6px;flex-wrap:wrap}header h1{display:none}#chat{min-width:0}form input{min-width:0}#readbtn .lbl,#grambtn .lbl{display:none}
+  header{padding:8px 10px;gap:6px;flex-wrap:wrap}header h1{display:none}#chat{min-width:0}form input{min-width:0}#readbtn .lbl,#grambtn .lbl,#taskbtn .lbl{display:none}
   header button,header select{padding:4px 7px;font-size:12px;white-space:nowrap;max-width:110px}
   body.nb aside{display:block;position:fixed;left:0;right:0;bottom:0;top:var(--hh,49px);z-index:5;border:0}
   #who{width:96px}#char{width:92px;height:98px}#bubble{font-size:16px}#stage{padding:8px 10px;gap:10px}}
@@ -114,7 +114,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
 </head>
 <body>
 <header>
-  <h1>Ученик немецкого · B1 · ru/uk</h1>
+  <h1>Макс · учим немецкий вместе</h1>
   <span id="stat"></span>
   <select id="skip" title="Симуляция: ученик не занимался несколько дней — часть слов и правил забудется" style="border:1px solid var(--line);background:none;color:var(--ink);border-radius:6px;padding:4px 6px;font:inherit">
     <option value="">⏩ Перемотать время</option><option value="1">+1 день</option><option value="7">+7 дней</option><option value="30">+30 дней</option><option value="90">+90 дней</option>
@@ -140,6 +140,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <div id="s_models" style="margin-top:6px"></div>
   <button type="button" id="s_list" style="margin-top:6px;padding:5px 12px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit;font-size:13px">Показать список моделей</button>
   <label id="cloudrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_cloud" style="width:auto;margin-top:3px"><span>☁ Хранить настройки (в том числе ключ) в облаке Telegram: ввести один раз, и они подтянутся на всех ваших устройствах и не сбросятся. Снимите галочку, если не хотите, чтобы ключ был в облаке.</span></label>
+  <label id="friendrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_friend" style="width:auto;margin-top:3px"><span>✍ Макс замечает ошибки в моём немецком по ходу разговора (один дополнительный запрос к модели на сообщение).</span></label>
   <label id="webrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_web" style="width:auto;margin-top:3px"><span>🌐 Ученик ищет слова в интернете (Wiktionary, переводчик MyMemory) и открывает статьи по ссылке (через r.jina.ai). Наружу уходят только искомые слова и адрес ссылки. Снимите галочку, чтобы он пользовался только моделью.</span></label>
   <div id="webonly" hidden>
     <label>Токен Telegram-бота — пересылать записи об обучении в ваш чат <span id="tghint"></span></label>
@@ -185,18 +186,19 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
         </svg>
         <div id="rank"></div>
       </div>
-      <div id="bubble" class="idle">Напишите мне что-нибудь по-немецки. Что знаю — отвечу, чего не знаю — выучу.</div>
+      <div id="bubble" class="idle">Привет! Я Макс. Давай учить немецкий вместе: пиши мне что угодно, а можешь попросить у меня задание 🎯</div>
       <div id="toast"></div>
     </div>
-    <div id="msgs"><div class="note">Напишите ученику по-немецки (или по-русски/по-украински). Его записная книжка (справа или кнопка 📓) меняется по ходу разговора.</div></div>
+    <div id="msgs"><div class="note">Пиши Максу по-немецки (или по-русски/по-украински). Ваша общая записная книжка (справа или кнопка 📓) меняется по ходу занятий: его прогресс — это и твой прогресс.</div></div>
     <form id="f"><input id="in" autocomplete="off" placeholder="Hallo! Wie geht es dir? — или вставьте текст/статью" autofocus>
+      <button type="button" id="taskbtn" title="Макс предложит задание для вас обоих: он сам его уже попробовал и покажет свой вариант после вашего" style="background:none;color:var(--ink);border:1px solid var(--line)">🎯<span class="lbl"> Задание</span></button>
       <button type="button" id="grambtn" title="Разбор грамматики: ученик попробует перевести текст, найдёт, чему надо научиться, составит план по частям и потренируется" style="background:none;color:var(--ink);border:1px solid var(--line)">🧩<span class="lbl"> Разбор</span></button>
       <button type="button" id="readbtn" title="Ученик прочитает текст из поля: поймёт ли он его, что выучит и как" style="background:none;color:var(--ink);border:1px solid var(--line)">📖<span class="lbl"> Понимаешь?</span></button>
       <button id="go">Отправить</button></form>
   </section>
   <aside>
-    <h2>Грамматика</h2><div id="gram"></div>
-    <h2>Слова (слабые сверху)</h2><div id="vocab"></div>
+    <h2>Наша грамматика</h2><div id="gram"></div>
+    <h2>Наши слова (слабые сверху)</h2><div id="vocab"></div>
   </aside>
 </main>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -244,12 +246,12 @@ function renderState(s){
   $('#vocab').innerHTML=s.vocab.map(w=>{const st=WS[w.state]||WS.known;
     return `<div class="w" style="${w.state==='forgotten'?'opacity:.6':''}" title="${esc(w.uk)} · видел ${w.seen}×${w.how?' · '+esc(w.how):''}"><span>${esc(w.lemma)} <span class="note">${esc(w.ru)}</span></span><span style="color:var(${st[0]})">${st[1]?st[1]+' · ':''}${w.strength.toFixed(2)}</span></div>`}).join('');
   const k=s.vocab.filter(w=>w.state?w.state==='known':w.strength>=s.threshold).length;
-  $('#stat').textContent=`слов: ${s.vocab.length}, уверенных: ${k}`;
+  $('#stat').textContent=`слов: ${s.vocab.length}, уверенных: ${k}`+(s.stats&&s.stats.tasks?` · заданий: ${s.stats.tasks} (верно ${s.stats.ok})`:'');
 }
 
 function botHtml(d){
   const r=d.reply;
-  let h='<div class="sec">Понимание</div>'+(r.comprehension||[]).map(c=>
+  let h=((r.comprehension||[]).length?'<div class="sec">Понимание</div>':'')+(r.comprehension||[]).map(c=>
     `<span class="chip ${c.status}" title="${esc(c.note)}">${esc(c.item)} · ${ST[c.status]||c.status}</span>`).join('');
   if(r.reading){
     const g=r.reading, pc=x=>Math.round(x*100);
@@ -263,6 +265,36 @@ function botHtml(d){
       <div class="note">зелёное — знал · оранжевое — подзабыл · красное — не знаю · синее — выучил сейчас</div>
       ${g.after_ru?`<div class="sum" style="margin-top:6px"><b>Теперь понимаю:</b> ${esc(g.after_ru)}</div>`:''}
       ${(g.unclear.length||g.still_unknown.length)?`<div class="note" style="margin-top:4px">Осталось непонятным: ${esc([...g.unclear,...g.still_unknown].join('; '))}</div>`:''}`;
+  }
+  if(r.task){
+    const t=r.task;
+    h+=`<div class="sec">🎯 Задание от Макса</div><div class="card">
+      ${t.intro_ru?`<div>${esc(t.intro_ru)}</div>`:''}
+      <div style="margin-top:6px"><span class="tag" style="margin-left:0">${esc(t.kind_ru||'')}</span> <b>${esc(t.task_ru)}</b></div>
+      ${t.task_de?`<div class="say" style="margin-top:4px">${esc(t.task_de)}</div>`:''}
+      ${t.hint_ru?`<div class="hintbox note" hidden style="margin-top:4px">💡 ${esc(t.hint_ru)}</div>`:''}
+      <div style="margin-top:8px"><button class="mini" data-act="hint" style="margin-left:0">Подсказка</button>
+        <button class="mini" data-act="newtask">Другое задание</button><button class="mini" data-act="skiptask">Пропустить</button></div>
+      <div class="note" style="margin-top:6px">Ответь сообщением. Свой вариант Макс покажет после твоего.</div></div>`;
+  }
+  if(r.taskResult){
+    const x=r.taskResult, V={ok:['ok','✓ верно'],partly:['','△ частично'],wrong:['no','✗ неверно']}, u=V[x.verdict]||['',''], m=V[x.max_verdict]||['',''];
+    h+=`<div class="sec">🎯 Разбор задания</div><div class="card">
+      <div class="note">${esc(x.task_ru)}${x.task_de?' — '+esc(x.task_de):''}</div>
+      <div>Твой ответ: <b>${esc(x.user)}</b> <span class="${u[0]}"><b>${u[1]}</b></span></div>
+      ${(x.errors||[]).length?`<div class="note">Что не так: ${esc(x.errors.join('; '))}</div>`:''}
+      ${x.correction&&x.verdict!=='ok'?`<div>Правильно: <b>${esc(x.correction)}</b></div>`:''}
+      ${x.max_answer?`<div style="margin-top:6px">Мой вариант: <b>${esc(x.max_answer)}</b> <span class="${m[0]}"><b>${m[1]}</b></span>${(x.max_errors||[]).length?`<div class="note">${esc(x.max_errors.join('; '))}</div>`:''}</div>`:'<div class="note" style="margin-top:6px">Свой вариант я не успел(а) сделать.</div>'}
+    </div>
+    ${x.react_ru?`<div class="sum" style="margin-top:6px">${esc(x.react_ru)}</div>`:''}
+    ${x.tip_ru?`<div class="advice">💡 <b>Лайфхак:</b> ${esc(x.tip_ru)}</div>`:''}
+    ${x.hack_ru&&x.hack_ru!==x.tip_ru?`<div class="note" style="margin-top:4px">Мой приём: ${esc(x.hack_ru)}</div>`:''}
+    ${x.next_ru?`<div class="note" style="margin-top:4px">${esc(x.next_ru)}</div>`:''}
+    ${x.stats?`<div class="note">Наш счёт: заданий ${x.stats.tasks}, верно ${x.stats.ok}${x.touched&&x.touched.length?' · потренировали: '+esc(x.touched.join(', ')):''}</div>`:''}`;
+  }
+  if((r.friend_note||[]).length){
+    h+=`<div class="sec">✍ Заметил по ходу</div><div class="card">`+r.friend_note.map(e=>
+      `<div><span class="no"><b>${esc(e.wrong)}</b></span> → <span class="ok"><b>${esc(e.right)}</b></span>${e.why?`<div class="note">${esc(e.why)}</div>`:''}</div>`).join('')+`</div>`;
   }
   if(r.grammar){
     const g=r.grammar, GS={known:['known','знаю'],fading:['partial','подзабыл'],weak:['partial','знаю слабо'],unknown:['unknown','не знаю'],new:['new','новая']};
@@ -347,15 +379,16 @@ async function restoreFeed(){
   items.forEach(renderFeedItem);
   $('#msgs').lastElementChild?.scrollIntoView({block:'end'});
 }
-restoreFeed();
+restoreFeed().then(()=>{ if(api.nudge)api.nudge().then(t=>{ if(t)bubble(esc(t),true) }) });
 window.addEventListener('learner-sync',()=>{ if(api.feed)api.feed().then(items=>{const fresh=items.filter(i=>!shown.has(i.id));if(fresh.length){fresh.forEach(renderFeedItem);}}); });
 
 async function send(m,mode){
-  $('#in').value=''; $('#go').disabled=true; $('#readbtn').disabled=true; $('#grambtn').disabled=true;
+  $('#in').value=''; $('#go').disabled=true; $('#readbtn').disabled=true; $('#grambtn').disabled=true; $('#taskbtn').disabled=true;
   add('me',esc(m.length>600?m.slice(0,600)+'…':m));
   const reading=mode==='read'||(!mode&&(m.match(/[A-Za-zÄÖÜäöüß]+/g)||[]).length>=14);
   const hasUrl=/https?:\/\/\S+/.test(m), gram=mode==='grammar';
-  const wait=add('bot note',gram?'Разбираю грамматику: перевожу, ищу, чему надо научиться…':hasUrl?'Открываю ссылку и читаю статью…':reading?'Читаю текст, сверяюсь с записной книжкой…':'Ученик думает…');
+  if(mode==='task'){mood('think');bubble('Сейчас придумаю, что нам попробовать…',true)}
+  const wait=add('bot note',mode==='task'?'Макс придумывает задание и пробует его сам…':gram?'Разбираю грамматику: перевожу, ищу, чему надо научиться…':hasUrl?'Открываю ссылку и читаю статью…':reading?'Читаю текст, сверяюсь с записной книжкой…':'Ученик думает…');
   mood('think'); bubble(gram?'Так, давайте разберёмся, как это переводится и чему мне надо научиться…':hasUrl?'Открываю статью…':reading?'Читаю… Посмотрим, что я тут понимаю.':'Хм… (если не знаю слова — загляну в словарь)',true);
   try{
     const d=await api.chat(m,mode);
@@ -364,19 +397,27 @@ async function send(m,mode){
     const r=d.reply, g=r.reading;
     const unknown=(r.comprehension||[]).some(c=>c.status==='unknown');
     const learnedAny=((r.study||{}).sessions||[]).some(s=>s.learned);
-    mood(d.warning?'confused':learnedAny||(r.lookups||[]).length||(r.learning||[]).length?'aha':unknown?'confused':'happy',7000);
-    bubble(d.tokens.map(t=>t.s?`<span class="say"><span class="${t.s}">${esc(t.t)}</span></span>`:esc(t.t)).join('')+
+    mood(d.warning?'confused':r.task?'think':r.taskResult?(r.taskResult.verdict==='ok'?'happy':'confused'):learnedAny||(r.lookups||[]).length||(r.learning||[]).length?'aha':unknown?'confused':'happy',7000);
+    if(r.task){bubble(esc(r.task.intro_ru||'Есть задание для нас!')+'<div class="gloss">Ответь мне сообщением 🙂</div>');}
+    else if(r.taskResult&&!(d.tokens||[]).length){bubble(esc(r.taskResult.react_ru||''));}
+    else bubble(d.tokens.map(t=>t.s?`<span class="say"><span class="${t.s}">${esc(t.t)}</span></span>`:esc(t.t)).join('')+
       `<div class="gloss">${esc(r.reply_gloss_ru)}</div>`+
       (g?`<div class="gloss">📖 Понимал ${Math.round(g.coverage_before*100)}% → теперь ${Math.round(g.coverage_after*100)}%</div>`:'')+
-      (r.review_request?`<div class="gloss">🔁 ${esc(r.review_request.text_ru)}</div>`:''));
+      (r.review_request?`<div class="gloss">🔁 ${esc(r.review_request.text_ru)}</div>`:'')+
+      (r.taskResult&&r.taskResult.react_ru?`<div class="gloss">${esc(r.taskResult.react_ru)}</div>`:''));
   }catch(err){wait.className='bot warn'; wait.textContent='Ошибка: '+err.message; mood('confused',5000); bubble('Что-то пошло не так (см. сообщение ниже).',true); if(/ключ|key/i.test(err.message))openSettings()}
-  $('#go').disabled=false; $('#readbtn').disabled=false; $('#grambtn').disabled=false; $('#in').focus(); wait.scrollIntoView({block:'end'});
+  $('#go').disabled=false; $('#readbtn').disabled=false; $('#grambtn').disabled=false; $('#taskbtn').disabled=false; $('#in').focus(); wait.scrollIntoView({block:'end'});
 }
 $('#f').onsubmit=e=>{e.preventDefault();const m=$('#in').value.trim();if(m)send(m)};
 $('#readbtn').onclick=()=>{const m=$('#in').value.trim();if(m)send(m,'read')};
 $('#grambtn').onclick=()=>{const m=$('#in').value.trim();if(m)send(m,'grammar')};
+$('#taskbtn').onclick=()=>send('Дай задание','task');
 $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе повторить
-  const b=e.target.closest('button[data-act]'); if(!b||$('#go').disabled)return;
+  const b=e.target.closest('button[data-act]'); if(!b)return;
+  if(b.dataset.act==='hint'){const hb=b.closest('.card').querySelector('.hintbox'); if(hb){hb.hidden=!hb.hidden} return}
+  if($('#go').disabled)return;
+  if(b.dataset.act==='newtask'){send('Дай другое задание','task');return}
+  if(b.dataset.act==='skiptask'){api.skipTask().then(()=>{b.closest('.card').insertAdjacentHTML('beforeend','<div class="note">Пропустили. Если захочешь, жми 🎯.</div>');});return}
   const w=b.dataset.lemma;
   if(b.dataset.act==='remind')send(`Das Wort „${w}“ bedeutet: ${b.dataset.ru}.`);
   else send(`Was bedeutet „${w}“?`);
@@ -398,6 +439,7 @@ async function openSettings(){
   $('#tghint').textContent=s.has_tg?'(сохранён; пусто = не менять)':'';
   $('#ver').hidden=!(window.api&&api.version); if(window.api&&api.version)$('#ver').textContent='Версия приложения: '+api.version+' · '+location.host;
   $('#webrow').hidden=!window.api; $('#s_web').checked=s.web_search!==false;
+  $('#friendrow').hidden=!window.api; $('#s_friend').checked=s.friend_checks!==false;
   $('#cloudrow').hidden=!s.cloud; $('#s_cloud').checked=s.cloud_key!==false; $('#s_test').hidden=!window.api;
   $('#s_provider').value=s.provider;$('#s_url').value=s.base_url;$('#s_model').value=s.model;$('#s_key').value='';
   showEff();
@@ -444,7 +486,7 @@ $('#s_export').onclick=async()=>{
 };
 $('#preset').onchange=e=>{const p=PRESETS[e.target.value];if(!p)return;$('#s_provider').value=p[0];$('#s_url').value=p[1];$('#s_model').value=p[2]};
 const formSettings=()=>({provider:$('#s_provider').value,base_url:$('#s_url').value,model:$('#s_model').value,api_key:$('#s_key').value,
-  tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value,cloud_key:$('#s_cloud').checked,web_search:$('#s_web').checked});
+  tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value,cloud_key:$('#s_cloud').checked,web_search:$('#s_web').checked,friend_checks:$('#s_friend').checked});
 $('#s_save').onclick=async()=>{
   const s=await api.saveSettings(formSettings());
   if(s.error)$('#serr').textContent=s.error;else $('#dlg').close();
