@@ -626,6 +626,24 @@ const FORGOTTEN = 0.2;
       if (CS) await saveCfg().catch(() => {});
       return publicSettings();
     },
+    // Список моделей, которые этот ключ реально может вызывать (GET /models) — чтобы не гадать с названием
+    listModels: async () => {
+      const key = settings.api_key;
+      if (!key) return { ok: false, error: 'Не задан API-ключ.', url: '' };
+      const openai = settings.provider === 'openai';
+      const base = (settings.base_url || (openai ? 'https://api.openai.com/v1' : 'https://api.anthropic.com')).replace(/\/$/, '');
+      const url = base + (openai ? '/models' : '/v1/models');
+      const headers = openai ? { Authorization: 'Bearer ' + key }
+        : { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+      try {
+        const res = await fetch(url, { headers });
+        const txt = await res.text();
+        if (!res.ok) return { ok: false, url, error: `Ошибка API ${res.status}: ${txt.slice(0, 200)}` };
+        const j = JSON.parse(txt);
+        const models = (j.data || j.models || []).map(m => (typeof m === 'string' ? m : m.id || m.name)).filter(Boolean);
+        return { ok: true, url, models };
+      } catch (e) { return { ok: false, url, error: String((e && e.message) || e) }; }
+    },
     // Проверка подключения: крошечный запрос; показывает адрес и ответ, чтобы ошибки настройки были видны сразу
     testConnection: async () => {
       try { const t = await complete('Ответь одним словом: ok', [{ role: 'user', content: 'ping' }]); return { ok: true, url: effectiveUrl(), answer: String(t).slice(0, 80) }; }

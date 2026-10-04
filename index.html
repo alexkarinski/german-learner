@@ -137,6 +137,8 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <div id="s_eff" class="note" style="margin-top:4px;word-break:break-all"></div>
   <label>API-ключ <span id="keyhint"></span></label><input id="s_key" type="password" autocomplete="off" placeholder="вставьте ключ">
   <label>Модель</label><input id="s_model" autocomplete="off">
+  <div id="s_models" style="margin-top:6px"></div>
+  <button type="button" id="s_list" style="margin-top:6px;padding:5px 12px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit;font-size:13px">Показать список моделей</button>
   <label id="cloudrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_cloud" style="width:auto;margin-top:3px"><span>☁ Хранить настройки (в том числе ключ) в облаке Telegram: ввести один раз, и они подтянутся на всех ваших устройствах и не сбросятся. Снимите галочку, если не хотите, чтобы ключ был в облаке.</span></label>
   <div id="webonly" hidden>
     <label>Токен Telegram-бота — пересылать записи об обучении в ваш чат <span id="tghint"></span></label>
@@ -404,6 +406,16 @@ function showEff(){
 }
 ['#s_provider','#s_url'].forEach(s=>{$(s).addEventListener('input',showEff);$(s).addEventListener('change',showEff)});
 $('#preset').addEventListener('change',showEff);
+$('#s_list').onclick=async()=>{
+  const e=$('#serr'), box=$('#s_models'); e.style.color=''; e.textContent='Запрашиваю список моделей…'; box.innerHTML='';
+  await api.saveSettings(formSettings());
+  const r=await api.listModels();
+  if(!r.ok){e.style.color='var(--unk)';e.textContent='❌ '+r.error+(r.url?' (адрес: '+r.url+')':'');return}
+  if(!r.models.length){e.textContent='Сервер вернул пустой список. Скопируйте название модели из документации провайдера.';return}
+  e.style.color='var(--known)'; e.textContent='Нажмите на модель, чтобы подставить её:';
+  box.innerHTML=r.models.slice(0,60).map(m=>`<button type="button" class="mini" style="margin:2px 4px 2px 0" data-m="${esc(m)}">${esc(m)}</button>`).join('');
+};
+$('#s_models').addEventListener('click',ev=>{const b=ev.target.closest('button[data-m]'); if(b){$('#s_model').value=b.dataset.m;$('#serr').textContent='Выбрана модель: '+b.dataset.m+'. Нажмите «Проверить подключение», затем «Сохранить».'}});
 $('#s_test').onclick=async()=>{
   const e=$('#serr'); e.style.color=''; e.textContent='Проверяю подключение…';
   await api.saveSettings(formSettings());
@@ -412,9 +424,9 @@ $('#s_test').onclick=async()=>{
   else{
     e.style.color='var(--unk)';
     const m=r.error||''; let hint='';
-    if(/401|invalid.*key|authentication/i.test(m))hint=' → Ключ не принят: создайте новый ключ и вставьте его целиком, без пробелов.';
+    if(/model_not_available|not supported|model.*(not found|missing|invalid)|unknown model/i.test(m))hint=' → Ключ принят, но такой модели нет: в поле «Модель» должен быть идентификатор модели, а не название вкладки. Нажмите «Показать список моделей».';
+    else if(/401|invalid.*key|authentication/i.test(m))hint=' → Ключ не принят: создайте новый ключ и вставьте его целиком, без пробелов.';
     else if(/404/.test(m))hint=' → Такого адреса нет. Для «OpenAI-совместимый» адрес должен заканчиваться на /v1, для «Anthropic» — без /v1.';
-    else if(/model/i.test(m)&&/400|not found|missing/i.test(m))hint=' → Проверьте поле «Модель»: название из списка моделей провайдера, символ в символ.';
     else if(/Failed to fetch|NetworkError|Load failed/i.test(m))hint=' → Браузер не смог отправить запрос: нет сети или сервер не разрешает запросы из браузера (CORS).';
     e.textContent='❌ '+m+hint+' (адрес: '+r.url+')';
   }
