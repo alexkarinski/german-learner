@@ -29,6 +29,7 @@ form{padding-bottom:max(12px,env(safe-area-inset-bottom))!important;border-top:0
 .chip2{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:14px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;text-align:left}
 .how{background:var(--shaky-bg);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:14px}
 .how b{display:block;margin-bottom:2px}
+.intro summary{cursor:pointer;margin:2px 0}.intro details{border-top:1px solid var(--line);padding-top:4px}
 @media(max-height:640px){#stage{display:none}}
 header{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;background:var(--panel)}
 header h1{font-size:16px;margin:0;flex:1}
@@ -186,6 +187,8 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <div id="s_models" style="margin-top:6px"></div>
   <button type="button" id="s_list" style="margin-top:6px;padding:5px 12px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit;font-size:13px">Показать список моделей</button>
   <label id="cloudrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_cloud" style="width:auto;margin-top:3px"><span>☁ Хранить настройки (в том числе ключ) в облаке Telegram: ввести один раз, и они подтянутся на всех ваших устройствах и не сбросятся. Снимите галочку, если не хотите, чтобы ключ был в облаке.</span></label>
+  <label id="fastrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_fast" style="width:auto;margin-top:3px"><span>⚡ Быстрый режим: просить модель не «размышлять» и пропускать необязательные запросы (совет считается без модели). Намного быстрее; если ответы стали слишком короткими, отключите.</span></label>
+  <div id="benchrow" hidden style="margin-top:8px"><button type="button" id="s_bench" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit;font-size:13px">⏱ Подобрать быструю модель</button><div id="s_benchres" style="margin-top:6px"></div></div>
   <label id="friendrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_friend" style="width:auto;margin-top:3px"><span>✍ Макс замечает ошибки в моём немецком по ходу разговора (один дополнительный запрос к модели на сообщение).</span></label>
   <label id="webrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_web" style="width:auto;margin-top:3px"><span>🌐 Ученик ищет слова в интернете (Wiktionary, переводчик MyMemory) и открывает статьи по ссылке (через r.jina.ai). Наружу уходят только искомые слова и адрес ссылки. Снимите галочку, чтобы он пользовался только моделью.</span></label>
   <div id="webonly" hidden>
@@ -235,15 +238,48 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <div id="bubble" class="idle">Привет! Я Макс. Давай учить немецкий вместе: пиши мне что угодно, а можешь попросить у меня задание 🎯</div>
       <div id="toast"></div>
     </div>
-    <div id="msgs"><div class="note intro">Пиши Максу как другу — по-русски, по-украински или по-немецки. Ваша общая записная книжка (справа или кнопка 📓) меняется по ходу занятий: его прогресс — это и твой прогресс.
-      <div style="margin-top:8px"><b>Как со мной говорить</b> — нажми на фразу, она подставится в поле:</div>
-      <div class="chips">
-        <button class="chip2" data-fill="Объясни тему: Dativ">💡 Объясни тему: Dativ</button>
-        <button class="chip2" data-fill="В чём разница между dass и weil?">💡 В чём разница между dass и weil?</button>
-        <button class="chip2" data-fill="Проверь: Ich habe gestern ein Buch gekauft.">✍ Проверь: Ich habe gestern ein Buch gekauft.</button>
-        <button class="chip2" data-fill="Как перевести: Obwohl es regnet, gehe ich spazieren.">🧩 Как перевести: Obwohl es regnet, gehe ich spazieren.</button>
-      </div>
-      <div style="margin-top:8px">Кнопки под чатом: <b>🎯 Задание</b> (Макс даёт задание для вас обоих), <b>💡 Объясни тему</b>, <b>✍ Проверь меня</b>, <b>🧩 Разбор текста</b>, <b>📖 Понимаешь?</b>. Для всех, кроме задания, сначала напиши текст в поле.</div></div></div>
+    <div id="msgs"><div class="note intro">Пиши Максу как другу — по-русски, по-украински или по-немецки. Ваша общая записная книжка (справа или кнопка 📓) меняется по ходу занятий: его прогресс — это и твой прогресс. <b>Нажми на фразу — она подставится в поле, останется дописать своё.</b>
+      <details open style="margin-top:8px"><summary><b>🆕 Выучить новую тему (B2 / C1) вместе с Максом</b></summary>
+        <div class="note" style="margin:4px 0">Напиши «Объясни тему», уровень и тему. Макс найдёт источники в интернете, объяснит по-русски, выучит ключевые слова вместе с тобой, а потом будет давать задания, пока вы оба не закрепите (кнопка «🎯 Учим до результата»).</div>
+        <div class="chips">
+          <button class="chip2" data-fill="Объясни тему B2: Konjunktiv I (косвенная речь)">B2 · Konjunktiv I (косвенная речь)</button>
+          <button class="chip2" data-fill="Объясни тему B2: Passiv und Passiversatzformen">B2 · Passiv и его замены</button>
+          <button class="chip2" data-fill="Объясни тему B2: Konnektoren obwohl, trotzdem, dennoch, zwar … aber">B2 · Konnektoren (obwohl, trotzdem…)</button>
+          <button class="chip2" data-fill="Объясни тему B2: Relativsätze mit was, wo, wer">B2 · Relativsätze с was, wo, wer</button>
+          <button class="chip2" data-fill="Объясни тему C1: Nominalisierung und Nominalstil">C1 · Nominalisierung (номинальный стиль)</button>
+          <button class="chip2" data-fill="Объясни тему C1: erweiterte Partizipialattribute">C1 · erweiterte Partizipialattribute</button>
+          <button class="chip2" data-fill="Объясни тему C1: Funktionsverbgefüge">C1 · Funktionsverbgefüge</button>
+          <button class="chip2" data-fill="Объясни тему C1: Modalpartikeln (doch, ja, mal, eben, halt)">C1 · Modalpartikeln</button>
+          <button class="chip2" data-fill="Давай разберём тему C1: Konjunktiv II der Vergangenheit (Irrealis) и потренируемся">C1 · Irrealis der Vergangenheit</button>
+          <button class="chip2" data-fill="Хочу выучить тему B2: Genitiv-Präpositionen (wegen, trotz, während, aufgrund)">B2 · Genitiv-Präpositionen</button>
+        </div></details>
+      <details style="margin-top:6px"><summary><b>📝 Разобрать текст: перевод, конструкции, упражнения</b></summary>
+        <div class="note" style="margin:4px 0">Вставь немецкий текст. Если он длинный, Макс спросит, что с ним делать. «Разбери» запускает полный разбор: переведёт сам, сверит с эталоном, найдёт слова в интернете, покажет конструкции, составит план, а потом можно «✍ Написать по образцу».</div>
+        <div class="chips">
+          <button class="chip2" data-fill="Разбери: ">🧩 Разбери: (и вставь текст)</button>
+          <button class="chip2" data-fill="Как перевести: ">🧩 Как перевести: (и вставь текст)</button>
+          <button class="chip2" data-fill="Понимаешь? ">📖 Понимаешь? (текст или ссылка на статью)</button>
+        </div></details>
+      <details style="margin-top:6px"><summary><b>✍ Проверка твоих предложений</b></summary>
+        <div class="chips">
+          <button class="chip2" data-fill="Проверь: Ich habe gestern ein Buch gekauft.">✍ Проверь: Ich habe gestern ein Buch gekauft.</button>
+          <button class="chip2" data-fill="Проверь: ">✍ Проверь: (и своё предложение)</button>
+        </div></details>
+      <details style="margin-top:6px"><summary><b>🎯 Задания и закрепление</b></summary>
+        <div class="note" style="margin:4px 0">Кнопка «🎯 Задание» даёт одно задание на одну тему. Если есть цель закрепления (после темы, текста, чтения), Макс даёт задания <b>подряд</b>, пока каждый пункт не освоен: сила от 0.7 и два верных ответа подряд. Ответ пиши обычным сообщением.</div>
+        <div class="chips">
+          <button class="chip2" data-fill="Дай задание">🎯 Дай задание</button>
+          <button class="chip2" data-fill="Закрепляем до результата">🎯 Закрепляем до результата</button>
+        </div></details>
+      <details style="margin-top:6px"><summary><b>🔎 Слова и вопросы</b></summary>
+        <div class="chips">
+          <button class="chip2" data-fill="Знаешь слово Verspätung? Как оно переводится?">Знаешь слово Verspätung?</button>
+          <button class="chip2" data-fill="В чём разница между dass и weil?">В чём разница между dass и weil?</button>
+          <button class="chip2" data-fill="Как строить Nebensatz с weil?">Как строить Nebensatz с weil?</button>
+        </div></details>
+      <details style="margin-top:6px"><summary><b>📚 Учебник и ⚙ скорость</b></summary>
+        <div class="note" style="margin:4px 0">📚 Книга → загрузи PDF/EPUB/FB2/TXT → «Составить курс»: Макс поведёт по урокам. ⚙ Настройки → «⚡ Быстрый режим» и «⏱ Подобрать быструю модель», если отвечает долго.</div></details>
+    </div></div>
     <div id="tools">
       <button type="button" id="taskbtn" title="Макс предложит задание для вас обоих: он сам его уже попробовал и покажет свой вариант после вашего">🎯 Задание</button>
       <button type="button" id="bookbtn" title="Загрузить книгу или учебник (PDF, EPUB, FB2, TXT) и работать по ней вместе с Максом">📚 Книга</button>
@@ -308,6 +344,34 @@ function renderState(s){
   $('#stat').textContent=`слов: ${s.vocab.length}, уверенных: ${k}`+(s.stats&&s.stats.tasks?` · заданий: ${s.stats.tasks} (верно ${s.stats.ok})`:'');
 }
 
+// карточка задания: одна и та же для первого задания и для следующих в цикле закрепления
+function taskCardHtml(t,title){
+  return `<div class="sec">${title}</div><div class="card">
+      ${t.intro_ru?`<div>${esc(t.intro_ru)}</div>`:''}
+      <div style="margin-top:8px"><b>Что делаем:</b> ${esc(t.task_ru)} <span class="tag">${esc(t.kind_ru||'')}</span></div>
+      ${t.task_de?`<div class="say" style="margin-top:6px">${esc(t.task_de)}</div>`:''}
+      <div class="how"><b>✍ Как ответить</b>${esc(t.how_ru||'Напиши ответ одним сообщением.')}
+        ${t.example_ru?`<div class="note" style="margin-top:4px">${esc(t.example_ru)}</div>`:''}
+        <div class="note" style="margin-top:4px">Напиши ответ в поле внизу и нажми «Отправить». Свой вариант Макс покажет после твоего.</div></div>
+      ${t.hint_ru?`<div class="hintbox note" hidden style="margin-top:6px">💡 ${esc(t.hint_ru)}</div>`:''}
+      <div style="margin-top:8px"><button class="mini" data-act="hint" style="margin-left:0">Подсказка</button>
+        <button class="mini" data-act="newtask">Другое задание</button><button class="mini" data-act="skiptask">Пропустить</button></div></div>`;
+}
+// прогресс закрепления: что освоено, что ещё держится нетвёрдо, как идёт цикл заданий
+function goalHtml(g){
+  if(!g||!g.total)return '';
+  const pct=Math.round(g.done/g.total*100);
+  const head=g.status==='done'?'🎉 Закрепили всё':g.status==='paused'?'⏸ Пауза в закреплении':'🎯 Закрепляем до результата';
+  const left=g.left.map(x=>`<span class="wc ${x.strength>=0.7?'known':x.strength>=0.4?'partial':'unknown'}" title="сила ${x.strength}; верных подряд ${x.streak} из 2">${esc(x.name)} · ${x.streak}/2</span>`).join('');
+  const done=(g.done_items||[]).map(n=>`<span class="wc ${(g.newly_done||[]).includes(n)?'new':'known'}">✓ ${esc(n)}</span>`).join('');
+  return `<div class="how" style="margin-top:8px"><b>${head}${g.title?': «'+esc(g.title)+'»':''}</b>
+    <div class="bar2" style="margin:6px 0"><i style="width:${pct}%;background:var(--known)"></i></div>
+    <div class="note">Освоено ${g.done} из ${g.total} · заданий в этом заходе: ${g.asked} из ${g.max}. Пункт считается освоенным, когда он держится (сила от 0.7) и два раза подряд верно в заданиях.</div>
+    <div style="margin-top:4px">${done}${left}</div>
+    ${g.status==='done'?'<div style="margin-top:6px">Теперь это в нашей общей памяти: <b>и ты, и Макс это выучили</b>. Через пару дней он напомнит повторить.</div>':''}
+    ${g.status==='paused'?'<div style="margin-top:6px"><button class="mini" data-act="continuegoal" style="margin-left:0">▶ Продолжить закрепление</button></div>':''}
+    ${g.status==='active'?'<div style="margin-top:6px"><button class="mini" data-act="pausegoal" style="margin-left:0">Хватит на сегодня</button></div>':''}</div>`;
+}
 function botHtml(d){
   const r=d.reply;
   let h=((r.comprehension||[]).length?'<div class="sec">Понимание</div>':'')+(r.comprehension||[]).map(c=>
@@ -331,22 +395,20 @@ function botHtml(d){
       (c.unit_done?` · <b>урок пройден ✅</b>${c.mastery!=null?` (усвоение ${Math.round(c.mastery*100)}%)`:''}${c.finished?' — весь курс пройден 🎉':c.next_unit?` · дальше: «${esc(c.next_unit)}»`:''}`:'')+
       `<div class="note" style="margin-top:4px">Дальше: 📚 Книга → «▶ Дальше по курсу»</div></div>`+h;
   }
+  if(r.choose){
+    h+=`<div class="sec">Что делаем с этим текстом?</div><div class="card"><div class="note">В сообщении ${r.choose.n} немецких слов. Это текст для изучения или просто реплика в разговоре?</div>
+      <div class="chips"><button class="chip2" data-act="choose" data-mode="grammar">🧩 Разобрать: перевод, конструкции, план и упражнения</button>
+        <button class="chip2" data-act="choose" data-mode="read">📖 Только понять слова и смысл</button>
+        <button class="chip2" data-act="choose" data-mode="chat">💬 Просто поболтать</button></div></div>`;
+  }
   if(r.task){
-    const t=r.task;
-    h+=`<div class="sec">🎯 Задание от Макса</div><div class="card">
-      ${t.intro_ru?`<div>${esc(t.intro_ru)}</div>`:''}
-      <div style="margin-top:8px"><b>Что делаем:</b> ${esc(t.task_ru)} <span class="tag">${esc(t.kind_ru||'')}</span></div>
-      ${t.task_de?`<div class="say" style="margin-top:6px">${esc(t.task_de)}</div>`:''}
-      <div class="how"><b>✍ Как ответить</b>${esc(t.how_ru||'Напиши ответ одним сообщением.')}
-        ${t.example_ru?`<div class="note" style="margin-top:4px">${esc(t.example_ru)}</div>`:''}
-        <div class="note" style="margin-top:4px">Напиши ответ в поле внизу и нажми «Отправить». Свой вариант Макс покажет после твоего.</div></div>
-      ${t.hint_ru?`<div class="hintbox note" hidden style="margin-top:6px">💡 ${esc(t.hint_ru)}</div>`:''}
-      <div style="margin-top:8px"><button class="mini" data-act="hint" style="margin-left:0">Подсказка</button>
-        <button class="mini" data-act="newtask">Другое задание</button><button class="mini" data-act="skiptask">Пропустить</button></div></div>`;
+    h+=taskCardHtml(r.task,'🎯 Задание от Макса');
+    if(r.goal)h+=goalHtml(r.goal);
   }
   if(r.topic){
     const t=r.topic, GS2={known:['known','знаем'],fading:['partial','подзабыли'],weak:['partial','знаем слабо'],unknown:['unknown','не знаем'],new:['new','новое для нас']};
     h+=`<div class="sec">💡 Тема</div><div class="card"><b>${esc(t.title)}</b>${t.level?`<span class="tag">${esc(t.level)}</span>`:''}
+      ${(t.sources||[]).length?`<div class="note">🌐 Источники: ${t.sources.map(s=>`<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>`).join(', ')}</div>`:'<div class="note">🧠 Без источников из интернета: объяснение по знаниям модели</div>'}
       <div style="margin-top:4px">${esc(t.summary_ru)}</div>
       ${(t.steps_ru||[]).length?`<ol style="margin:6px 0 6px 18px;padding:0">${t.steps_ru.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>`:''}
       ${t.pattern?`<div class="say" style="font-size:15px">${esc(t.pattern)}</div>`:''}
@@ -358,7 +420,8 @@ function botHtml(d){
       ${t.max_ru?`<div class="sum" style="margin-top:6px"><b>Как я это понимаю:</b> ${esc(t.max_ru)}</div>`:''}
       ${t.start_ru?`<div class="how"><b>С чего начнём</b>${esc(t.start_ru)}</div>`:''}
       ${t.hack_ru?`<div class="advice">💡 <b>Лайфхак:</b> ${esc(t.hack_ru)}</div>`:''}
-      <div style="margin-top:8px"><button class="mini" data-act="traintopic" style="margin-left:0">🎯 Потренируем эту тему</button></div>`;
+      ${r.goal?goalHtml(r.goal):''}
+      <div style="margin-top:8px"><button class="mini" data-act="traintopic" style="margin-left:0">🎯 Учим до результата</button></div>`;
   }
   if(r.check&&r.check.ok)h+=`<div class="sec">✍ Проверка</div><div class="card"><b>${esc(r.check.text)}</b><div class="ok"><b>✅ Ошибок не нашёл</b></div></div>`;
   if(r.taskResult){
@@ -375,6 +438,8 @@ function botHtml(d){
     ${x.hack_ru&&x.hack_ru!==x.tip_ru?`<div class="note" style="margin-top:4px">Мой приём: ${esc(x.hack_ru)}</div>`:''}
     ${x.next_ru?`<div class="note" style="margin-top:4px">${esc(x.next_ru)}</div>`:''}
     ${x.stats?`<div class="note">Наш счёт: заданий ${x.stats.tasks}, верно ${x.stats.ok}${x.touched&&x.touched.length?' · потренировали: '+esc(x.touched.join(', ')):''}</div>`:''}`;
+    if(r.goal)h+=goalHtml(r.goal);
+    if(r.next_task)h+=taskCardHtml(r.next_task,'🎯 Следующее задание: закрепляем');
   }
   if((r.friend_note||[]).length){
     h+=`<div class="sec">✍ Заметил по ходу</div><div class="card">`+r.friend_note.map(e=>
@@ -404,6 +469,9 @@ function botHtml(d){
       `<div class="card"><div class="note">${esc(p.rule)}</div><b>${esc(p.de)}</b> ${p.checked?(p.ok?'<span class="ok"><b>✓ верно</b></span>':'<span class="no"><b>✗ ошибка</b></span>'):''}
         ${!p.ok&&p.correction?`<div>Правильно: <b>${esc(p.correction)}</b></div>`:''}${!p.ok&&p.why?`<div class="note">${esc(p.why)}</div>`:''}</div>`).join('');
     if(g.dropped)h+=`<div class="note">Примеров с незнакомыми ему словами отброшено: ${g.dropped}.</div>`;
+    if(r.goal)h+=goalHtml(r.goal);
+    h+=`<div style="margin-top:8px"><button class="mini" data-act="traintopic" style="margin-left:0">🎯 Закреплять заданиями до результата</button>
+      <button class="mini" data-act="writelike" data-src="${esc(g.source||'')}">✍ Написать по образцу</button></div>`;
   }
   if((r.lookups||[]).length){
     h+='<div class="sec">🔎 Не знал — посмотрел в словаре</div>'+r.lookups.map(x=>
@@ -454,7 +522,7 @@ $('#helpbtn').onclick=()=>{ add('bot note',INTRO_HTML.replace('class="note intro
 const shown=new Set();
 function renderFeedItem(it){
   if(shown.has(it.id))return; shown.add(it.id);
-  if(it.k==='me')add('me',esc(it.text.length>600?it.text.slice(0,600)+'…':it.text));
+  if(it.k==='me'){const me=add('me',esc(it.text.length>600?it.text.slice(0,600)+'…':it.text)); me.dataset.full=it.text}
   else if(it.d)add('bot',botHtml(it.d));
 }
 async function restoreFeed(){
@@ -475,7 +543,7 @@ window.addEventListener('learner-sync',()=>{ if(api.feed)api.feed().then(items=>
 
 async function send(m,mode,extra){
   $('#in').value=''; document.querySelectorAll('#tools button,#go').forEach(b=>b.disabled=true);
-  add('me',esc(m.length>600?m.slice(0,600)+'…':m));
+  if(!(extra&&extra.again)){const me=add('me',esc(m.length>600?m.slice(0,600)+'…':m)); me.dataset.full=m;}   // полный текст нужен кнопкам выбора
   const reading=mode==='read'||(!mode&&(m.match(/[A-Za-zÄÖÜäöüß]+/g)||[]).length>=14);
   const hasUrl=/https?:\/\/\S+/.test(m), gram=mode==='grammar';
   if(mode==='task'){mood('think');bubble('Сейчас придумаю, что нам попробовать…',true)}
@@ -578,7 +646,15 @@ $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе п�
   const chip=e.target.closest('[data-fill]');
   if(chip){ $('#in').value=chip.dataset.fill; $('#in').focus(); return }
   const b=e.target.closest('button[data-act]'); if(!b)return;
-  if(b.dataset.act==='traintopic'&&!$('#go').disabled){send('Потренируем эту тему','task');return}
+  if(b.dataset.act==='traintopic'&&!$('#go').disabled){send('Закрепляем: учим до результата','task',{goal:true});return}
+  if(b.dataset.act==='continuegoal'&&!$('#go').disabled){send('Продолжаем закреплять','task',{goal:true});return}
+  if(b.dataset.act==='pausegoal'){api.goalPause().then(()=>{b.closest('.how').insertAdjacentHTML('beforeend','<div class="note" style="margin-top:6px">Ок, отдыхаем. Продолжим, когда нажмёшь 🎯.</div>');b.remove()});return}
+  if(b.dataset.act==='writelike'&&!$('#go').disabled){send('✍ Задание: написать по образцу текста','task',{text:b.dataset.src,pattern:true});return}
+  if(b.dataset.act==='choose'&&!$('#go').disabled){   // что делать с длинным немецким текстом
+    let me=b.closest('.bot'); me=me&&me.previousElementSibling;
+    const txt=me&&me.classList.contains('me')?(me.dataset.full||me.innerText):''; if(!txt)return;
+    send(txt,b.dataset.mode,{again:true});return;
+  }
   if(b.dataset.act==='hint'){const hb=b.closest('.card').querySelector('.hintbox'); if(hb){hb.hidden=!hb.hidden} return}
   if($('#go').disabled)return;
   if(b.dataset.act==='newtask'){send('Дай другое задание','task');return}
@@ -605,6 +681,7 @@ async function openSettings(){
   $('#ver').hidden=!(window.api&&api.version); if(window.api&&api.version)$('#ver').textContent='Версия приложения: '+api.version+' · '+location.host;
   $('#webrow').hidden=!window.api; $('#s_web').checked=s.web_search!==false;
   $('#friendrow').hidden=!window.api; $('#s_friend').checked=s.friend_checks!==false;
+  $('#fastrow').hidden=!window.api; $('#s_fast').checked=s.fast!==false; $('#benchrow').hidden=!window.api;
   $('#cloudrow').hidden=!s.cloud; $('#s_cloud').checked=s.cloud_key!==false; $('#s_test').hidden=!window.api;
   $('#s_provider').value=s.provider;$('#s_url').value=s.base_url;$('#s_model').value=s.model;$('#s_key').value='';
   showEff();
@@ -651,7 +728,7 @@ $('#s_export').onclick=async()=>{
 };
 $('#preset').onchange=e=>{const p=PRESETS[e.target.value];if(!p)return;$('#s_provider').value=p[0];$('#s_url').value=p[1];$('#s_model').value=p[2]};
 const formSettings=()=>({provider:$('#s_provider').value,base_url:$('#s_url').value,model:$('#s_model').value,api_key:$('#s_key').value,
-  tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value,cloud_key:$('#s_cloud').checked,web_search:$('#s_web').checked,friend_checks:$('#s_friend').checked});
+  tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value,cloud_key:$('#s_cloud').checked,web_search:$('#s_web').checked,friend_checks:$('#s_friend').checked,fast:$('#s_fast').checked});
 $('#s_save').onclick=async()=>{
   const s=await api.saveSettings(formSettings());
   if(s.error)$('#serr').textContent=s.error;else $('#dlg').close();
@@ -676,6 +753,20 @@ $('#s_clearfeed').onclick=async()=>{
   await api.clearFeed(); shown.clear(); $('#msgs').innerHTML='<div class="note">Переписка очищена. Память ученика сохранена.</div>';
   $('#serr').style.color='var(--known)'; $('#serr').textContent='Переписка очищена';
 };
+// замер скорости моделей: тот же крошечный запрос ко всем; нажатие на результат подставляет модель
+$('#s_bench').onclick=async()=>{
+  const box=$('#s_benchres'), e=$('#serr'); box.innerHTML=''; e.style.color=''; e.textContent='Замеряю модели одну за другой, это может занять около минуты…';
+  await api.saveSettings(formSettings());
+  const cur=$('#s_model').value.trim();
+  const items=[];
+  const draw=()=>{box.innerHTML=[...items].sort((a,b)=>(b.ok-a.ok)||(a.ms-b.ms)).map(x=>
+    `<button type="button" class="chip2" style="margin:2px 4px 2px 0;${x.ok?'':'opacity:.55'}" ${x.ok?`data-m="${esc(x.model)}"`:''}>${esc(x.model)} · ${x.ok?(x.ms/1000).toFixed(1)+' с ✓':(x.error?esc(x.error):x.empty?'пусто ✗':'не JSON ✗')}</button>`).join('')};
+  const r=await api.benchmark([...MODEL_GUESSES.filter(m=>m!=='claude-sonnet-5-5'),cur],it=>{items.push(it);draw()});
+  const good=r.filter(x=>x.ok).sort((a,b)=>a.ms-b.ms);
+  e.style.color=good.length?'var(--known)':'var(--unk)';
+  e.textContent=good.length?`Самая быстрая из рабочих: ${good[0].model} (${(good[0].ms/1000).toFixed(1)} с). Нажми на модель, чтобы выбрать, затем «Сохранить».`:'Ни одна модель не ответила нужным образом. Проверьте ключ и адрес («Проверить подключение»).';
+};
+$('#s_benchres').addEventListener('click',ev=>{const b=ev.target.closest('button[data-m]'); if(b){$('#s_model').value=b.dataset.m;$('#serr').style.color='';$('#serr').textContent='Выбрана модель '+b.dataset.m+'. Нажми «Сохранить».'}});
 $('#s_list').onclick=async()=>{
   const e=$('#serr'), box=$('#s_models'); e.style.color=''; e.textContent='Запрашиваю список моделей…'; box.innerHTML='';
   await api.saveSettings(formSettings());
