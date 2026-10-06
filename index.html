@@ -190,6 +190,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <label id="fastrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_fast" style="width:auto;margin-top:3px"><span>⚡ Быстрый режим: просить модель не «размышлять» и пропускать необязательные запросы (совет считается без модели). Намного быстрее; если ответы стали слишком короткими, отключите.</span></label>
   <div id="benchrow" hidden style="margin-top:8px"><button type="button" id="s_bench" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink);cursor:pointer;font:inherit;font-size:13px">⏱ Подобрать быструю модель</button><div id="s_benchres" style="margin-top:6px"></div></div>
   <label id="friendrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_friend" style="width:auto;margin-top:3px"><span>✍ Макс замечает ошибки в моём немецком по ходу разговора (один дополнительный запрос к модели на сообщение).</span></label>
+  <label id="deeprow" style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:8px"><input type="checkbox" id="s_deep" style="width:auto;margin-top:3px"><span>🔎 Глубокий поиск по темам: не только Википедия, но и сайты по грамматике (Lingolia, Duden, DW и др.) и примеры из Tatoeba. Медленнее на 10–20 с; запрос уходит через DuckDuckGo и r.jina.ai.</span></label>
   <label id="webrow" hidden style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:13px;margin-top:12px"><input type="checkbox" id="s_web" style="width:auto;margin-top:3px"><span>🌐 Ученик ищет слова в интернете (Wiktionary, переводчик MyMemory) и открывает статьи по ссылке (через r.jina.ai). Наружу уходят только искомые слова и адрес ссылки. Снимите галочку, чтобы он пользовался только моделью.</span></label>
   <div id="webonly" hidden>
     <label>Токен Telegram-бота — пересылать записи об обучении в ваш чат <span id="tghint"></span></label>
@@ -408,7 +409,7 @@ function botHtml(d){
   if(r.topic){
     const t=r.topic, GS2={known:['known','знаем'],fading:['partial','подзабыли'],weak:['partial','знаем слабо'],unknown:['unknown','не знаем'],new:['new','новое для нас']};
     h+=`<div class="sec">💡 Тема</div><div class="card"><b>${esc(t.title)}</b>${t.level?`<span class="tag">${esc(t.level)}</span>`:''}
-      ${(t.sources||[]).length?`<div class="note">🌐 Источники: ${t.sources.map(s=>`<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>`).join(', ')}</div>`:'<div class="note">🧠 Без источников из интернета: объяснение по знаниям модели</div>'}
+      ${(t.sources||[]).length?`<div class="note">🌐 Источники (✓ — опирался): ${t.sources.map(s=>`<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>${s.used?' ✓':''}`).join(', ')}</div>`:'<div class="note">🧠 Без источников из интернета: объяснение по знаниям модели</div>'}
       <div style="margin-top:4px">${esc(t.summary_ru)}</div>
       ${(t.steps_ru||[]).length?`<ol style="margin:6px 0 6px 18px;padding:0">${t.steps_ru.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>`:''}
       ${t.pattern?`<div class="say" style="font-size:15px">${esc(t.pattern)}</div>`:''}
@@ -470,6 +471,7 @@ function botHtml(d){
         ${!p.ok&&p.correction?`<div>Правильно: <b>${esc(p.correction)}</b></div>`:''}${!p.ok&&p.why?`<div class="note">${esc(p.why)}</div>`:''}</div>`).join('');
     if(g.dropped)h+=`<div class="note">Примеров с незнакомыми ему словами отброшено: ${g.dropped}.</div>`;
     if(r.goal)h+=goalHtml(r.goal);
+    if(r.next_task)h+=taskCardHtml(r.next_task,'🎯 Первое задание: закрепляем разобранное');
     h+=`<div style="margin-top:8px"><button class="mini" data-act="traintopic" style="margin-left:0">🎯 Закреплять заданиями до результата</button>
       <button class="mini" data-act="writelike" data-src="${esc(g.source||'')}">✍ Написать по образцу</button></div>`;
   }
@@ -679,7 +681,7 @@ async function openSettings(){
   $('#s_tgtoken').value=''; $('#s_tgchat').value=s.tg_chat||'';
   $('#tghint').textContent=s.has_tg?'(сохранён; пусто = не менять)':'';
   $('#ver').hidden=!(window.api&&api.version); if(window.api&&api.version)$('#ver').textContent='Версия приложения: '+api.version+' · '+location.host;
-  $('#webrow').hidden=!window.api; $('#s_web').checked=s.web_search!==false;
+  $('#webrow').hidden=!window.api; $('#s_web').checked=s.web_search!==false; $('#s_deep').checked=s.deep_search!==false;
   $('#friendrow').hidden=!window.api; $('#s_friend').checked=s.friend_checks!==false;
   $('#fastrow').hidden=!window.api; $('#s_fast').checked=s.fast!==false; $('#benchrow').hidden=!window.api;
   $('#cloudrow').hidden=!s.cloud; $('#s_cloud').checked=s.cloud_key!==false; $('#s_test').hidden=!window.api;
@@ -728,7 +730,7 @@ $('#s_export').onclick=async()=>{
 };
 $('#preset').onchange=e=>{const p=PRESETS[e.target.value];if(!p)return;$('#s_provider').value=p[0];$('#s_url').value=p[1];$('#s_model').value=p[2]};
 const formSettings=()=>({provider:$('#s_provider').value,base_url:$('#s_url').value,model:$('#s_model').value,api_key:$('#s_key').value,
-  tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value,cloud_key:$('#s_cloud').checked,web_search:$('#s_web').checked,friend_checks:$('#s_friend').checked,fast:$('#s_fast').checked});
+  tg_token:$('#s_tgtoken').value,tg_chat:$('#s_tgchat').value,cloud_key:$('#s_cloud').checked,web_search:$('#s_web').checked,deep_search:$('#s_deep').checked,friend_checks:$('#s_friend').checked,fast:$('#s_fast').checked});
 $('#s_save').onclick=async()=>{
   const s=await api.saveSettings(formSettings());
   if(s.error)$('#serr').textContent=s.error;else $('#dlg').close();
