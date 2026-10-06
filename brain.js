@@ -7,7 +7,7 @@ const READ_LEARN_SYSTEM = "Ты — Макс, парень, носитель р�
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-06 02:54";
+const APP_VERSION = "2026-10-06 02:56";
 const READ_PERSONA = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\n";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
@@ -93,7 +93,7 @@ const FORGOTTEN = 0.2;
     for (const m of Object.values(state.gmeta)) m.last -= sh;
   };
   let settings = { provider: 'anthropic', base_url: '', api_key: '', model: 'claude-sonnet-5-5',
-                   tg_token: '', tg_chat: '', effort: 3, cloud_key: true, web_search: true, deep_search: true, friend_checks: true, fast: true, ...load(LS_SET, {}) };
+                   tg_token: '', tg_chat: '', effort: 3, cloud_key: true, web_search: true, deep_search: true, friend_checks: true, fast: true, fallback_models: '', ...load(LS_SET, {}) };
   let history = [];
 
   // ---------- просьба повторить: ученик сам замечает, что забывает ----------
@@ -397,7 +397,7 @@ const FORGOTTEN = 0.2;
   let slots = 2; const slotQ = [];
   const slotAcquire = () => slots > 0 ? (slots--, Promise.resolve()) : new Promise(r => slotQ.push(r));
   const slotRelease = () => { const n = slotQ.shift(); if (n) n(); else slots++; };
-  async function complete(system, msgs, modelOverride, maxTokens = 4096) {
+  async function completeOne(system, msgs, modelOverride, maxTokens = 4096) {
     const key = settings.api_key;
     if (!key) throw new Error('Не задан API-ключ. Откройте ⚙ Настройки.');
     const openai = settings.provider === 'openai', url = effectiveUrl();
@@ -439,6 +439,42 @@ const FORGOTTEN = 0.2;
     lastMeta = { finish: (ch && ch.finish_reason) || j.stop_reason || '', reasoningChars: reasoning.length };
     if (!out.trim() && reasoning) out = reasoning;   // иногда ответ лежит в поле размышлений
     return out;
+  }
+
+
+  // Автосмена модели: если текущая недоступна (лимит 429 после повторов, 5xx, нет такой модели, слишком долго), берём следующую из запасных.
+  // Новая модель получает служебную записку: что случилось, кто она теперь, и что всё знание — только из блокнота и дневника.
+  const INTERN_FALLBACKS = ['deepseek-v4-flash-0731', 'glm-5.3', 'kimi-k2.6', 'qwen3.8-27b', 'deepseek-v4-pro-0813'];
+  const badUntil = {}, switches = [];   // model → время, до которого её не трогаем; события смены для показа пользователю
+  let activeModel = '';
+  const fallbackModels = () => {
+    const own = String(settings.fallback_models || '').split(/[,\s]+/).filter(Boolean);
+    return own.length ? own : (/intern-ai/.test(effectiveUrl()) ? INTERN_FALLBACKS : []);
+  };
+  const switchable = e => /Ошибка API (429|5\d\d|404)|слишком долго|model_not_available|not supported|model.*(not found|invalid|missing)|unknown model|пуст|не JSON/i.test(String((e && e.message) || e));
+  const shortWhy = e => { const m = String((e && e.message) || e); return /429/.test(m) ? 'лимит запросов (429)' : /слишком долго/.test(m) ? 'слишком долго отвечает' : /404|model/i.test(m) ? 'модель недоступна' : /5\d\d/.test(m) ? 'ошибка сервера' : m.slice(0, 60); };
+  async function complete(system, msgs, modelOverride, maxTokens = 4096) {
+    if (modelOverride) return completeOne(system, msgs, modelOverride, maxTokens);
+    const now = Date.now(), main = settings.model;
+    const all = [...new Set([main, ...fallbackModels()])].filter(Boolean);
+    let order = all.filter(m => !(badUntil[m] > now)); if (!order.length) order = all;   // все «плохие» — пробуем всё равно
+    let lastErr, from = '', why = '';
+    for (const m of order) {
+      const note = (m !== main || from) ? `СЛУЖЕБНАЯ ЗАПИСКА: модель «${from || main}» сейчас недоступна${why ? ' (' + why + ')' : ''}, поэтому тебя запустили вместо неё (ты — «${m}»). Ты продолжаешь роль Макса с того же места: всё, что ты знаешь о друге, о немецком и о прошлых разговорах, находится ТОЛЬКО в блокноте и дневнике ниже; не придумывай воспоминаний и не упоминай смену модели в реплике.\n\n` : '';
+      try {
+        const out = await completeOne(note + system, msgs, m, maxTokens);
+        if (m !== activeModel) {
+          if (activeModel || m !== main) switches.push({ from: activeModel || main, to: m, why, t: Date.now() });
+          activeModel = m;
+        }
+        return out;
+      } catch (e) {
+        lastErr = e;
+        if (!switchable(e) || order.length === 1) throw e;
+        badUntil[m] = Date.now() + 5 * 60000; from = m; why = shortWhy(e);
+      }
+    }
+    throw lastErr;
   }
 
   // Запрос JSON. Некоторые модели (особенно «думающие») иногда отвечают обычным текстом: тогда один раз
@@ -1687,7 +1723,7 @@ const FORGOTTEN = 0.2;
     };
   };
   const publicSettings = () => ({ provider: settings.provider, base_url: settings.base_url, model: settings.model,
-    has_key: !!settings.api_key, effort: settings.effort, cloud: !!CS, cloud_key: settings.cloud_key !== false, web_search: settings.web_search !== false, deep_search: settings.deep_search !== false, friend_checks: settings.friend_checks !== false, fast: settings.fast !== false, has_tg: !!settings.tg_token, tg_chat: settings.tg_chat, error: settings.api_key ? null : 'Не задан API-ключ. Откройте ⚙ Настройки.', mock: false });
+    has_key: !!settings.api_key, effort: settings.effort, cloud: !!CS, cloud_key: settings.cloud_key !== false, web_search: settings.web_search !== false, deep_search: settings.deep_search !== false, fallback_models: settings.fallback_models || '', fallback_auto: fallbackModels().join(', '), friend_checks: settings.friend_checks !== false, fast: settings.fast !== false, has_tg: !!settings.tg_token, tg_chat: settings.tg_chat, error: settings.api_key ? null : 'Не задан API-ключ. Откройте ⚙ Настройки.', mock: false });
 
   window.api = {
     web: true, version: APP_VERSION,
@@ -1711,6 +1747,7 @@ const FORGOTTEN = 0.2;
         courseStepDone(extra.course, true); r.reply.course = courseBanner(extra.course); persist();
       }
       const d = { ...r, state: snapshot() };
+      if (switches.length) { d.model_switch = switches.splice(0).map(s => `Модель сменилась: «${s.from}» → «${s.to}»${s.why ? ' (причина: ' + s.why + ')' : ''}`); }
       d.ids = feedAdd(msg, r, extra && extra.again);   // переписка и карточка результата сохраняются
       return d;
     },
@@ -1737,6 +1774,7 @@ const FORGOTTEN = 0.2;
       if ('cloud_key' in o) settings.cloud_key = !!o.cloud_key;
       if ('web_search' in o) settings.web_search = !!o.web_search;
       if ('deep_search' in o) settings.deep_search = !!o.deep_search;
+      if ('fallback_models' in o) settings.fallback_models = String(o.fallback_models || '').trim();
       if ('friend_checks' in o) settings.friend_checks = !!o.friend_checks;
       if ('fast' in o) { settings.fast = !!o.fast; settings.no_fast_params = false; }   // переключили — снова пробуем быстрые параметры
       save(LS_SET, settings);
