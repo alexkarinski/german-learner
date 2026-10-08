@@ -287,6 +287,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <button type="button" id="bookbtn" title="Загрузить книгу или учебник (PDF, EPUB, FB2, TXT) и работать по ней вместе с Максом">📚 Книга</button>
       <button type="button" id="topicbtn" title="Напиши тему в поле (например: Dativ) — Макс разберётся и объяснит">💡 Объясни тему</button>
       <button type="button" id="checkbtn" title="Напиши в поле своё предложение по-немецки — Макс проверит">✍ Проверь меня</button>
+      <button type="button" id="mapbtn" title="Карта грамматики до C1: что уже выучено (в любом порядке), что подзабыто и что взять дальше">🗺 Путь до C1</button>
       <button type="button" id="studybtn" title="Вставь в поле любой текст (правило, упражнения, письмо, статью) — Макс поймёт тему, найдёт в интернете, научится, объяснит и будет гонять заданиями">🎓 Изучить текст</button>
       <button type="button" id="grambtn" title="Вставь в поле немецкий текст — Макс переведёт, найдёт, чему надо научиться, составит план и потренируется">🧩 Разбор текста</button>
       <button type="button" id="readbtn" title="Вставь в поле текст или ссылку — Макс скажет, понимает ли он, и выучит нужное">📖 Понимаешь?</button>
@@ -490,6 +491,7 @@ function botHtml(d){
       <button class="mini" data-act="writelike" data-src="${esc(g.source||'')}">✍ Написать по образцу</button></div>`;
   }
   if(r.next_task&&!r.taskResult&&!r.grammar)h+=taskCardHtml(r.next_task,'🎯 Первое задание: закрепляем');
+  if((r.roadmap_credit||[]).length)h+=`<div class="note" style="margin-top:6px">🗺 Засчитывается в путь до C1: ${r.roadmap_credit.map(c=>esc(c.name)+' ('+c.level+')').join(', ')}</div>`;
   if((r.lookups||[]).length){
     h+='<div class="sec">🔎 Не знал — посмотрел в словаре</div>'+r.lookups.map(x=>
       `<div class="card"><b>${esc(x.article?x.article+' ':'')}${esc(x.lemma)}</b> <span class="note">${esc(x.pos||'')}</span>
@@ -655,6 +657,23 @@ document.querySelectorAll('[data-bk]').forEach(btn=>btn.onclick=async()=>{
 });
 const needText=hint=>{ $('#in').focus(); toast(hint,4500) };
 $('#readbtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'read'):needText('Вставь в поле немецкий текст или ссылку на статью и нажми «Понимаешь?»')};
+// карта до C1: считается в браузере по нашей книжке, без модели
+function roadmapHtml(m){
+  const S={done:['known','✓ выучено'],learning:['partial','учим'],fading:['unknown','подзабыли'],todo:['','ещё нет']};
+  let h=`<div class="sec">🗺 Путь до грамотного C1</div><div class="card"><div class="note">Темы можно учить в любом порядке — присланные тексты, скриншоты и «объясни тему» засчитываются сами. Уровень закрыт, когда выучено 80% его тем.</div>`;
+  for(const L of m.levels){
+    const pct=Math.round(L.done/L.total*100);
+    h+=`<details ${L.level===m.current?'open':''} style="margin-top:8px"><summary><b>${L.level}</b> — выучено ${L.done} из ${L.total}${L.learning?`, учим ${L.learning}`:''} (${pct}%)${L.level===m.current?' · <b>мы здесь</b>':''}</summary>
+      <div style="height:6px;background:var(--line,#ddd);border-radius:3px;margin:6px 0"><div style="height:6px;width:${pct}%;background:var(--known,#2a7);border-radius:3px"></div></div>
+      ${m.items.filter(i=>i.level===L.level).map(i=>`<div style="display:flex;justify-content:space-between;gap:8px;margin:3px 0"><span>${esc(i.name)}</span><span class="${S[i.status][0]}" style="white-space:nowrap;font-size:12px">${S[i.status][1]}</span></div>`).join('')}</details>`;
+  }
+  const du=m.due||{words:0,rules:0};
+  h+=`<div style="margin-top:10px"><b>🔁 Пора повторить:</b> слов ${du.words}, тем ${du.rules}${(du.sample||[]).length?` <span class="note">(${esc(du.sample.join(', '))}…)</span>`:''}</div>`+
+    (du.words+du.rules?`<div class="chips"><button class="chip2" data-act="review">🔁 Повторить сейчас (задания, пока не освежим)</button></div>`:'<div class="note">Всё выученное пока держится — повторять рано.</div>');
+  if(m.next.length)h+=`<div style="margin-top:10px"><b>Что взять дальше:</b></div><div class="chips">${m.next.map(n=>`<button class="chip2" data-act="learntopic" data-t="${esc('Объясни тему '+n.level+': '+n.name)}">${n.status==='fading'?'🔁 ':''}${esc(n.name)}</button>`).join('')}</div>`;
+  return h+'</div>';
+}
+$('#mapbtn').onclick=async()=>{const m=await api.roadmap(); add('bot',roadmapHtml(m))};
 $('#studybtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'study'):needText('Вставь в поле любой текст: правило, упражнения, письмо, статью — и нажми «Изучить текст». Или пришли скриншот кнопкой 📷')};
 // скриншот: уменьшаем в браузере (до 1600 px, JPEG) и отправляем Максу; картинка не сохраняется, только распознанный текст
 const shrink=f=>new Promise((res,rej)=>{const img=new Image(),u=URL.createObjectURL(f);img.onload=()=>{const k=Math.min(1,1600/Math.max(img.width,img.height)),c=document.createElement('canvas');
@@ -677,6 +696,8 @@ $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе п�
   const chip=e.target.closest('[data-fill]');
   if(chip){ $('#in').value=chip.dataset.fill; $('#in').focus(); return }
   const b=e.target.closest('button[data-act]'); if(!b)return;
+  if(b.dataset.act==='review'&&!$('#go').disabled){send('🔁 Повторим, что начали забывать','task',{review:true});return}
+  if(b.dataset.act==='learntopic'&&!$('#go').disabled){send(b.dataset.t,'topic');return}
   if(b.dataset.act==='traintopic'&&!$('#go').disabled){send('Закрепляем: учим до результата','task',{goal:true});return}
   if(b.dataset.act==='continuegoal'&&!$('#go').disabled){send('Продолжаем закреплять','task',{goal:true});return}
   if(b.dataset.act==='pausegoal'){api.goalPause().then(()=>{b.closest('.how').insertAdjacentHTML('beforeend','<div class="note" style="margin-top:6px">Ок, отдыхаем. Продолжим, когда нажмёшь 🎯.</div>');b.remove()});return}
