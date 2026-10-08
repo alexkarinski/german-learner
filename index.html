@@ -553,7 +553,9 @@ async function restoreFeed(){
   items.forEach(renderFeedItem);
   $('#msgs').lastElementChild?.scrollIntoView({block:'end'});
 }
-restoreFeed().then(()=>{ if(api.nudge)api.nudge().then(t=>{ if(t)bubble(esc(t),true) }); refreshPending(); });
+restoreFeed().then(()=>{ if(api.nudge)api.nudge().then(t=>{ if(!t)return; if(typeof t==='string'){bubble(esc(t),true);return}
+    bubble(esc(t.text),true);
+    if(t.review)add('bot',`<div class="card">🔁 ${esc(t.text)}<div class="chips"><button class="chip2" data-act="review">🔁 Повторить сейчас</button><button class="chip2" data-act="openmap">🗺 Что именно забывается</button></div></div>`); }); refreshPending(); });
 // Telegram: высота окна с учётом клавиатуры и системных полос, чтобы поле ввода не пряталось под ними
 if(window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData){
   const fitApp=()=>document.documentElement.style.setProperty('--app-h',(Telegram.WebApp.viewportHeight||innerHeight)+'px');
@@ -696,6 +698,7 @@ $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе п�
   const chip=e.target.closest('[data-fill]');
   if(chip){ $('#in').value=chip.dataset.fill; $('#in').focus(); return }
   const b=e.target.closest('button[data-act]'); if(!b)return;
+  if(b.dataset.act==='openmap'){$('#mapbtn').click();return}
   if(b.dataset.act==='review'&&!$('#go').disabled){send('🔁 Повторим, что начали забывать','task',{review:true});return}
   if(b.dataset.act==='learntopic'&&!$('#go').disabled){send(b.dataset.t,'topic');return}
   if(b.dataset.act==='traintopic'&&!$('#go').disabled){send('Закрепляем: учим до результата','task',{goal:true});return}
