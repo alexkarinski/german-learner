@@ -1,0 +1,35 @@
+# Ежедневное напоминание от Макса в Telegram (работает, даже когда ПК и приложение выключены).
+# Не использует учебные данные: только текст и кнопку, открывающую Mini App. Что повторять, приложение покажет само.
+# Положить в репозиторий как .github/workflows/remind.yml.
+# Нужны секреты репозитория: TG_TOKEN (токен бота) и TG_CHAT (ваш chat id). Время — в cron, в UTC.
+name: remind
+on:
+  schedule:
+    - cron: '0 16 * * *'   # 16:00 UTC = 18:00 по Берлину летом (17:00 зимой)
+  workflow_dispatch: {}     # кнопка «Run workflow» — проверить вручную
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: send
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+          APP_URL: https://german-learner-1135.web.app
+        run: |
+          python3 - <<'PY'
+          import os, json, random, urllib.request
+          token, chat = os.environ.get('TG_TOKEN'), os.environ.get('TG_CHAT')
+          if not token or not chat:
+              raise SystemExit('Добавьте секреты TG_TOKEN и TG_CHAT в Settings → Secrets and variables → Actions')
+          text = random.choice([
+              'Привет! Это Макс 🙂 Давай повторим немного, пока ничего не вылетело из головы? Пара заданий — и всё снова держится.',
+              'Hallo! 👋 Я тут подумал: пора освежить то, что мы учили. Заглянешь на пару заданий?',
+              'Эй, бро 😄 Немецкий сам себя не повторит. Пять минут — и мы снова в форме. Погнали?',
+          ])
+          body = {'chat_id': chat, 'text': text,
+                  'reply_markup': {'inline_keyboard': [[{'text': '🔁 Повторить с Максом', 'web_app': {'url': os.environ['APP_URL']}}]]}}
+          req = urllib.request.Request(f'https://api.telegram.org/bot{token}/sendMessage', data=json.dumps(body).encode(),
+                                       headers={'Content-Type': 'application/json'})
+          print(json.load(urllib.request.urlopen(req, timeout=20)).get('ok'))
+          PY
