@@ -287,10 +287,11 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <button type="button" id="bookbtn" title="Загрузить книгу или учебник (PDF, EPUB, FB2, TXT) и работать по ней вместе с Максом">📚 Книга</button>
       <button type="button" id="topicbtn" title="Напиши тему в поле (например: Dativ) — Макс разберётся и объяснит">💡 Объясни тему</button>
       <button type="button" id="checkbtn" title="Напиши в поле своё предложение по-немецки — Макс проверит">✍ Проверь меня</button>
+      <button type="button" id="studybtn" title="Вставь в поле любой текст (правило, упражнения, письмо, статью) — Макс поймёт тему, найдёт в интернете, научится, объяснит и будет гонять заданиями">🎓 Изучить текст</button>
       <button type="button" id="grambtn" title="Вставь в поле немецкий текст — Макс переведёт, найдёт, чему надо научиться, составит план и потренируется">🧩 Разбор текста</button>
       <button type="button" id="readbtn" title="Вставь в поле текст или ссылку — Макс скажет, понимает ли он, и выучит нужное">📖 Понимаешь?</button>
     </div>
-    <form id="f"><input id="in" autocomplete="off" placeholder="Напиши Максу…" autofocus>
+    <form id="f"><button type="button" id="shot" title="Прислать скриншот или фото (тема, правило, упражнения) — Макс распознает, изучит и будет гонять заданиями" style="padding:0 12px">📷</button><input type="file" id="shotfile" accept="image/*" multiple hidden><input id="in" autocomplete="off" placeholder="Напиши Максу…" autofocus>
       <button id="go">Отправить</button></form>
   </section>
   <aside>
@@ -348,10 +349,11 @@ function renderState(s){
 
 // карточка задания: одна и та же для первого задания и для следующих в цикле закрепления
 function taskCardHtml(t,title){
+  const extraNote=(t.drill?`<div class="note">📌 ${esc(t.drill)}</div>`:'')+((t.review||[]).length?`<div class="note">🔁 Заодно освежаем давнее: ${esc(t.review.join(', '))}</div>`:'');
   return `<div class="sec">${title}</div><div class="card">
       ${t.intro_ru?`<div>${esc(t.intro_ru)}</div>`:''}
       <div style="margin-top:8px"><b>Что делаем:</b> ${esc(t.task_ru)} <span class="tag">${esc(t.kind_ru||'')}</span></div>
-      ${t.task_de?`<div class="say" style="margin-top:6px">${esc(t.task_de)}</div>`:''}
+      ${t.task_de?`<div class="say" style="margin-top:6px">${esc(t.task_de)}</div>`:''}${extraNote}
       <div class="how"><b>✍ Как ответить</b>${esc(t.how_ru||'Напиши ответ одним сообщением.')}
         ${t.example_ru?`<div class="note" style="margin-top:4px">${esc(t.example_ru)}</div>`:''}
         <div class="note" style="margin-top:4px">Напиши ответ в поле внизу и нажми «Отправить». Свой вариант Макс покажет после твоего.</div></div>
@@ -399,7 +401,7 @@ function botHtml(d){
   }
   if(r.choose){
     h+=`<div class="sec">Что делаем с этим текстом?</div><div class="card"><div class="note">В сообщении ${r.choose.n} немецких слов. Это текст для изучения или просто реплика в разговоре?</div>
-      <div class="chips"><button class="chip2" data-act="choose" data-mode="grammar">🧩 Разобрать: перевод, конструкции, план и упражнения</button>
+      <div class="chips"><button class="chip2" data-act="choose" data-mode="study">🎓 Изучить полностью: тема из интернета, стиль, грамматика и задания до результата</button><button class="chip2" data-act="choose" data-mode="grammar">🧩 Разобрать: перевод, конструкции, план и упражнения</button>
         <button class="chip2" data-act="choose" data-mode="read">📖 Только понять слова и смысл</button>
         <button class="chip2" data-act="choose" data-mode="chat">💬 Просто поболтать</button></div></div>`;
   }
@@ -407,10 +409,21 @@ function botHtml(d){
     h+=taskCardHtml(r.task,'🎯 Задание от Макса');
     if(r.goal)h+=goalHtml(r.goal);
   }
+  if(r.material){
+    const M=r.material;
+    h+=`<div class="sec">${M.origin==='screenshot'?'📷 Распознал скриншот':'🎓 Изучаем материал'}</div><div class="card"><b>${esc(M.title)}</b>
+      ${M.via?`<div class="note">распознано: ${esc(M.via)}</div>`:''}
+      ${M.summary_ru?`<div style="margin-top:4px">${esc(M.summary_ru)}</div>`:''}
+      ${M.genre_ru?`<div class="note" style="margin-top:4px">Что это: ${esc(M.genre_ru)}</div>`:''}
+      ${(M.style_ru||[]).length?`<div style="margin-top:6px"><b>✍ Как так писать:</b><ul style="margin:4px 0 0 18px;padding:0">${M.style_ru.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div>`:''}
+      ${(M.model_sentences||[]).length?`<div class="note" style="margin-top:6px">Образцы: ${M.model_sentences.map(s=>'«'+esc(s)+'»').join(' · ')}</div>`:''}
+      <div class="note" style="margin-top:6px">${M.exercises?`Упражнений из материала: ${M.exercises}. `:''}Заданий в очереди: ${M.drill}. Будем решать, пока оба не выучим.</div>
+      <details style="margin-top:6px"><summary class="note">Текст материала</summary><div style="white-space:pre-wrap;font-size:13px">${esc(M.text)}</div></details></div>`;
+  }
   if(r.topic){
     const t=r.topic, GS2={known:['known','знаем'],fading:['partial','подзабыли'],weak:['partial','знаем слабо'],unknown:['unknown','не знаем'],new:['new','новое для нас']};
     h+=`<div class="sec">💡 Тема</div><div class="card"><b>${esc(t.title)}</b>${t.level?`<span class="tag">${esc(t.level)}</span>`:''}
-      ${(t.sources||[]).length?`<div class="note">🌐 Источники (✓ — опирался): ${t.sources.map(s=>`<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>${s.used?' ✓':''}`).join(', ')}</div>`:'<div class="note">🧠 Без источников из интернета: объяснение по знаниям модели</div>'}
+      ${(t.sources||[]).length?`<div class="note">🌐 Источники (✓ — опирался): ${t.sources.map(s=>(s.url?`<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>`:`<b>${esc(s.title)}</b>`)+(s.used?' ✓':'')).join(', ')}</div>`:'<div class="note">🧠 Без источников из интернета: объяснение по знаниям модели</div>'}
       <div style="margin-top:4px">${esc(t.summary_ru)}</div>
       ${(t.steps_ru||[]).length?`<ol style="margin:6px 0 6px 18px;padding:0">${t.steps_ru.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>`:''}
       ${t.pattern?`<div class="say" style="font-size:15px">${esc(t.pattern)}</div>`:''}
@@ -476,6 +489,7 @@ function botHtml(d){
     h+=`<div style="margin-top:8px"><button class="mini" data-act="traintopic" style="margin-left:0">🎯 Закреплять заданиями до результата</button>
       <button class="mini" data-act="writelike" data-src="${esc(g.source||'')}">✍ Написать по образцу</button></div>`;
   }
+  if(r.next_task&&!r.taskResult&&!r.grammar)h+=taskCardHtml(r.next_task,'🎯 Первое задание: закрепляем');
   if((r.lookups||[]).length){
     h+='<div class="sec">🔎 Не знал — посмотрел в словаре</div>'+r.lookups.map(x=>
       `<div class="card"><b>${esc(x.article?x.article+' ':'')}${esc(x.lemma)}</b> <span class="note">${esc(x.pos||'')}</span>
@@ -551,7 +565,7 @@ async function send(m,mode,extra){
   const reading=mode==='read'||(!mode&&(m.match(/[A-Za-zÄÖÜäöüß]+/g)||[]).length>=14);
   const hasUrl=/https?:\/\/\S+/.test(m), gram=mode==='grammar';
   if(mode==='task'){mood('think');bubble('Сейчас придумаю, что нам попробовать…',true)}
-  const wait=add('bot note',mode==='task'?'Макс придумывает задание и пробует его сам…':gram?'Разбираю грамматику: перевожу, ищу, чему надо научиться…':hasUrl?'Открываю ссылку и читаю статью…':reading?'Читаю текст, сверяюсь с записной книжкой…':'Ученик думает…');
+  const wait=add('bot note',mode==='study'?(extra&&extra.images?'Распознаю скриншот, ищу тему в интернете, учусь и готовлю задания… (до минуты)':'Изучаю текст: тема, стиль, грамматика, ищу в интернете, готовлю задания… (до минуты)'):mode==='task'?'Макс придумывает задание и пробует его сам…':gram?'Разбираю грамматику: перевожу, ищу, чему надо научиться…':hasUrl?'Открываю ссылку и читаю статью…':reading?'Читаю текст, сверяюсь с записной книжкой…':'Ученик думает…');
   mood('think'); bubble(gram?'Так, давайте разберёмся, как это переводится и чему мне надо научиться…':hasUrl?'Открываю статью…':reading?'Читаю… Посмотрим, что я тут понимаю.':'Хм… (если не знаю слова — загляну в словарь)',true);
   try{
     const d=await api.chat(m,mode,extra);
@@ -641,6 +655,19 @@ document.querySelectorAll('[data-bk]').forEach(btn=>btn.onclick=async()=>{
 });
 const needText=hint=>{ $('#in').focus(); toast(hint,4500) };
 $('#readbtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'read'):needText('Вставь в поле немецкий текст или ссылку на статью и нажми «Понимаешь?»')};
+$('#studybtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'study'):needText('Вставь в поле любой текст: правило, упражнения, письмо, статью — и нажми «Изучить текст». Или пришли скриншот кнопкой 📷')};
+// скриншот: уменьшаем в браузере (до 1600 px, JPEG) и отправляем Максу; картинка не сохраняется, только распознанный текст
+const shrink=f=>new Promise((res,rej)=>{const img=new Image(),u=URL.createObjectURL(f);img.onload=()=>{const k=Math.min(1,1600/Math.max(img.width,img.height)),c=document.createElement('canvas');
+  c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL('image/jpeg',0.85))};
+  img.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('Не удалось открыть картинку'))};img.src=u});
+$('#shot').onclick=()=>{if(!$('#go').disabled)$('#shotfile').click()};
+$('#shotfile').onchange=async ev=>{
+  const files=[...ev.target.files].slice(0,4); ev.target.value=''; if(!files.length)return;
+  let images; try{images=await Promise.all(files.map(shrink))}catch(e){add('bot warn',esc(e.message));return}
+  const note=$('#in').value.trim();
+  const me=add('me',images.map(u=>`<img src="${u}" style="max-width:120px;max-height:120px;border-radius:8px;margin:2px">`).join('')+(note?'<div>'+esc(note)+'</div>':''));
+  send('📷 Скриншот'+(note?'\n'+note:''),'study',{images,again:true});
+};
 $('#grambtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'grammar'):needText('Вставь в поле немецкий текст (1–5 предложений) и нажми «Разбор текста»')};
 $('#topicbtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'topic'):needText('Напиши в поле тему, например «Dativ» или «dass и weil», и нажми «Объясни тему»')};
 $('#checkbtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'check'):needText('Напиши в поле своё предложение по-немецки и нажми «Проверь меня»')};
