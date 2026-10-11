@@ -17,4 +17,5 @@ jobs:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
           APP_URL: https://german-learner-1135.web.app
+          BOT_NAME: sambotDE_bot     # бот, в котором живёт Макс
         run: python3 .github/remind.py

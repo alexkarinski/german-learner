@@ -27,13 +27,19 @@ def tg(method, body):
 
 # --- профиль бота: кнопка меню открывает приложение, понятное описание (идемпотентно, каждый запуск) ---
 me = tg('getMe', {})
-print('бот:', me.get('result', {}).get('username') if me.get('ok') else me)
-if APP:
+name = me.get('result', {}).get('username', '') if me.get('ok') else ''
+print('бот:', name or me)
+EXPECTED = os.environ.get('BOT_NAME', '').lstrip('@').lower()
+OWN = not EXPECTED or name.lower() == EXPECTED   # профиль меняем только у бота Макса, а не у любого, чей токен попал в секрет
+if not OWN:
+    print(f'ВНИМАНИЕ: токен в TG_TOKEN — от бота @{name}, а Макс живёт в @{EXPECTED}. Профиль не трогаю; положите в TG_TOKEN токен @{EXPECTED}.')
+if APP and OWN:
     r = tg('setChatMenuButton', {'chat_id': int(CHAT) if CHAT.lstrip('-').isdigit() else CHAT,
                                  'menu_button': {'type': 'web_app', 'text': 'Макс', 'web_app': {'url': APP}}})
     print('кнопка меню:', r.get('ok'), r.get('description', ''))
-tg('setMyShortDescription', {'short_description': 'Макс — друг, который учит немецкий вместе с тобой: задания, разборы, повторение до C1.', 'language_code': 'ru'})
-tg('setMyDescription', {'description': 'Привет! Я Макс, тоже учу немецкий. Вместе разбираем темы и тексты, делаем задания, пока оба не выучим, и повторяем, чтобы не забывать. Нажми «Макс» внизу, чтобы открыть приложение.', 'language_code': 'ru'})
+if OWN:
+    tg('setMyShortDescription', {'short_description': 'Макс — друг, который учит немецкий вместе с тобой: задания, разборы, повторение до C1.', 'language_code': 'ru'})
+    tg('setMyDescription', {'description': 'Привет! Я Макс, тоже учу немецкий. Вместе разбираем темы и тексты, делаем задания, пока оба не выучим, и повторяем, чтобы не забывать. Нажми «Макс» внизу, чтобы открыть приложение.', 'language_code': 'ru'})
 
 # --- фраза дня: полезные обороты B1–C1 (по дню года, чтобы не повторялись подряд) ---
 PHRASES = [
