@@ -7,7 +7,7 @@ const READ_LEARN_SYSTEM = "Ты — Макс, парень, носитель р�
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-13 01:19";
+const APP_VERSION = "2026-10-13 01:21";
 const READ_PERSONA = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\n";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
@@ -246,7 +246,7 @@ const FORGOTTEN = 0.2;
     const newer = (a.chat_t | 0) >= (b.chat_t | 0) ? a : b;   // диалог и «дневник» берём у того, где разговор был позже
     out.chat = newer.chat || []; out.story = newer.story || ''; out.chat_t = newer.chat_t | 0;
     const tasks = new Map([...(a.recent_tasks || []), ...(b.recent_tasks || [])].map(x => [`${x.t || 0}|${x.kind}|${x.task_de || x.task_ru || ''}`, x]));
-    out.recent_tasks = [...tasks.values()].sort((x, y) => (x.t || 0) - (y.t || 0)).slice(-8);
+    out.recent_tasks = [...tasks.values()].sort((x, y) => (x.t || 0) - (y.t || 0)).slice(-40);
     out.recent_kinds = (out.recent_tasks.length ? out.recent_tasks.map(x => x.kind) : (newer.recent_kinds || [])).slice(-6);
     out.recent_focus = [...(newer.recent_focus || [])].slice(-12);
     out.fepoch = Math.max(a.fepoch | 0, b.fepoch | 0);
@@ -1334,13 +1334,21 @@ const FORGOTTEN = 0.2;
   const mistakesText = () => (state.mistakes || []).length
     ? 'НАШИ НЕДАВНИЕ ОШИБКИ:\n' + state.mistakes.slice(-5).map(m => `  • ${m.wrong || m.user || ''} → ${m.right || m.correction || ''}${m.why ? ' (' + m.why + ')' : ''}`).join('\n') + '\n\n' : '';
 
+  const TASK_CONTEXTS = ['работа и офис', 'наука и исследования', 'политика и общество', 'экология и климат', 'здоровье и медицина', 'путешествия и транспорт', 'жильё и аренда', 'учёба в университете',
+    'экономика и финансы', 'технологии и ИИ', 'искусство и культура', 'спорт', 'история', 'психология и отношения', 'право и бюрократия', 'медиа и новости', 'еда и рестораны', 'город и инфраструктура',
+    'семья и воспитание', 'карьера и собеседование', 'философия и этика', 'природа и животные', 'литература', 'миграция и интеграция'];
   async function taskTurn(bookText, courseRef, pattern, opts = {}) {
     const f = pickFocus({ review: opts.review });
     const drill = state.drill && state.drill.items && state.drill.i < state.drill.items.length && !bookText ? state.drill.items[state.drill.i] : null;
     const targetFocus = drill && drill.focus && drill.focus.length ? drill.focus : (f.goal ? f.items : [...f.words, ...f.rules].slice(0, 4));
     const kinds = (state.recent_kinds || []).slice(-3);
-    const recentTasks = (state.recent_tasks || []).slice(-8);
-    const recentTaskText = recentTasks.length ? `НЕ ПОВТОРЯЙ эти последние задания — придумай другое предложение и другой контекст, сохранив нужную тему:\n${recentTasks.map((x, i) => `  ${i + 1}. [${x.kind}] ${x.task_ru} ${x.task_de}`).join('\n')}\n\n` : '';
+    // за сегодня (последние сутки) одно и то же предложение не повторяется: помним до 40 заданий, модели показываем 12 последних
+    const recentTasks = (state.recent_tasks || []).filter(x => Date.now() - (x.t || 0) < DAY).slice(-40);
+    // каждое задание — в новой жизненной ситуации, чтобы не было однообразно
+    const recentCtx = new Set((state.recent_ctx || []).slice(-8));
+    const ctxPool = TASK_CONTEXTS.filter(c => !recentCtx.has(c)), ctx = ctxPool[Math.floor(Math.random() * ctxPool.length)] || TASK_CONTEXTS[0];
+    const recentTaskText = (recentTasks.length ? `НЕ ПОВТОРЯЙ задания, которые уже были сегодня — ни предложение, ни ситуацию, ни лексику; тему сохрани:\n${recentTasks.slice(-12).map((x, i) => `  ${i + 1}. [${x.kind}] ${x.task_ru} ${x.task_de}`).join('\n')}\n\n` : '') +
+      `КОНТЕКСТ ЭТОГО ЗАДАНИЯ (возьми ситуацию и лексику отсюда): ${ctx}\n\n`;
     const repeatedTask = task => {
       const text = String(task.task_de || task.task_ru || '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
       if (!text) return false;
@@ -1351,7 +1359,7 @@ const FORGOTTEN = 0.2;
         const other = new Set(prev.split(/\s+/).filter(w => w.length > 2));
         if (!words.size || !other.size) return false;
         let same = 0; for (const w of words) if (other.has(w)) same++;
-        return same / (words.size + other.size - same) >= 0.82;
+        return same / (words.size + other.size - same) >= 0.5;   // половина общих слов — уже «то же самое предложение»
       });
     };
     const bookPart = !bookText ? '' : pattern
@@ -1391,7 +1399,8 @@ const FORGOTTEN = 0.2;
       how_ru: t.how_ru || 'Напиши ответ одним сообщением.', example_ru: t.example_ru || '',
       hint_ru: t.hint_ru || '', focus: targetFocus, my_answer_de: t.my_answer_de || '', hack_ru: t.hack_ru || '', done: false,
       course: courseRef || null };
-    state.recent_tasks = [...recentTasks, { t: now, kind: state.task.kind, task_ru: state.task.task_ru, task_de: state.task.task_de }].slice(-8);
+    state.recent_tasks = [...recentTasks, { t: now, kind: state.task.kind, task_ru: state.task.task_ru, task_de: state.task.task_de }].slice(-40);
+    state.recent_ctx = [...(state.recent_ctx || []), ctx].slice(-10);
     state.recent_kinds = [...(state.recent_kinds || []), state.task.kind].slice(-6);
     state.recent_focus = [...(state.recent_focus || []), ...f.words, ...f.rules].slice(-12);
     if (drill) { state.drill.i++; state.task.drill = true; }
