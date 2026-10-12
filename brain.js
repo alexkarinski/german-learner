@@ -7,7 +7,7 @@ const READ_LEARN_SYSTEM = "Ты — Макс, парень, носитель р�
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-13 01:21";
+const APP_VERSION = "2026-10-13 01:25";
 const READ_PERSONA = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\n";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
@@ -185,6 +185,28 @@ const FORGOTTEN = 0.2;
     for (let i = 0; i < items.length; i += 4) await Promise.all(items.slice(i, i + 4).map(([k, v]) => csSetOne(k, v)));
   };
   const csDel = keys => new Promise((res, rej) => keys.length ? CS.removeItems(keys, e => e ? rej(csErr(e)) : res()) : res());
+  const csKeys = () => new Promise((res, rej) => CS.getKeys((e, k) => e ? rej(csErr(e)) : res(k || [])));
+  // Уборка облака. У Telegram лимит — 1024 ключа на пользователя; старые версии могли остаться (обрыв связи, два устройства
+  // писали одновременно) и забить его (ошибка STORAGE_KEYS_TOO_MANY). Удаляем куски всех версий, кроме текущих.
+  // Трогаем только свои ключи (v…_N, f…_N, st_…); версии моложе 3 минут не трогаем — их может дописывать другое устройство.
+  async function gcCloud() {
+    const [keys, cur] = await Promise.all([csKeys(), csGet(['ptr', 'fptr'])]);
+    const keep = new Set();
+    for (const [name, pre] of [['ptr', 'v'], ['fptr', 'f']]) {
+      try { const p = JSON.parse(cur[name] || 'null'); if (p) for (let i = 0; i < p.n; i++) keep.add(`${pre}${p.v}_${i}`); } catch { /* повреждённый указатель — его куски уже не нужны */ }
+    }
+    const fresh = v => { const t = parseInt(v, 36); return t && Date.now() - t < 3 * 60000; };
+    const junk = keys.filter(k => {
+      if (keep.has(k)) return false;
+      const m = k.match(/^([vf])([0-9a-z]+)_\d+$/);
+      if (m) return !fresh(m[2]);
+      return /^st_(\d+|n)$/.test(k);
+    });
+    for (let i = 0; i < junk.length; i += 50) await csDel(junk.slice(i, i + 50));
+    return { total: keys.length, removed: junk.length };
+  }
+  let gcDone = false;
+  const tooMany = e => /STORAGE_KEYS_TOO_MANY|KEYS_TOO_MANY/i.test(String((e && e.message) || e));
   const asciiJson = o => JSON.stringify(o).replace(/[\u0080-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
   const chunkKeys = (v, n) => Array.from({ length: n }, (_, i) => `v${v}_${i}`);
   const dataError = msg => Object.assign(new Error(msg), { dataError: true });   // данные в облаке повреждены (а не сбой связи)
@@ -327,6 +349,7 @@ const FORGOTTEN = 0.2;
   }
   async function syncFeed() {
     let cloud = null;
+    const saveFeedSafe = async () => { try { await saveFeedCloud(); } catch (e) { if (!tooMany(e) || !CS.getKeys) throw e; await gcCloud(); await saveFeedCloud(); } };
     try { cloud = await loadFeedCloud(); } catch (e) { if (!e.dataError) throw e; console.warn('лента в облаке повреждена, перезапишу:', e.message); }
     const fe = state.fepoch | 0, map = new Map();
     for (const it of [...(cloud || []), ...feed]) if ((it.e | 0) === fe) map.set(it.id, it);
@@ -334,7 +357,7 @@ const FORGOTTEN = 0.2;
     const changed = merged.length !== feed.length || merged.some((m, i) => m.id !== feed[i].id);
     feed = merged; save(LS_FEED, feed);
     const have = new Set((cloud || []).map(i => i.id));
-    if (!cloud || cloud.length > FEED_CLOUD || feed.slice(-FEED_CLOUD).some(i => !have.has(i.id))) await saveFeedCloud();
+    if (!cloud || cloud.length > FEED_CLOUD || feed.slice(-FEED_CLOUD).some(i => !have.has(i.id))) await saveFeedSafe();
     if (changed) window.dispatchEvent(new Event('learner-feed'));
   }
 
@@ -351,7 +374,11 @@ const FORGOTTEN = 0.2;
       if (cloudState) state = migrate(mergeStates(state, cloudState));
       if (state.log.length > 200) state.log = state.log.slice(-200);
       save(LS_STATE, state);
-      if (!cloudState || asciiJson(state) !== cloudFingerprint) await saveCloud();
+      if (!gcDone && CS.getKeys) { gcDone = true; try { const g = await gcCloud(); if (g.removed) console.info('облако: убрано старых ключей', g.removed, 'из', g.total); } catch (e) { console.warn('gc:', e); } }
+      if (!cloudState || asciiJson(state) !== cloudFingerprint) {
+        try { await saveCloud(); }
+        catch (e) { if (!tooMany(e) || !CS.getKeys) throw e; await gcCloud(); await saveCloud(); }   // лимит ключей: убрать мусор и записать ещё раз
+      }
       syncInfo = { enabled: true, at: Date.now(), ok: true, error: null, feedError: null };
       syncFeed().catch(e => { syncInfo = { ...syncInfo, feedError: String((e && e.message) || e) }; console.warn('feed sync:', e); });
     } catch (e) {
