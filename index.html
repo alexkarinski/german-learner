@@ -247,6 +247,11 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <div id="bubble" class="idle">Привет! Я Макс. Давай учить немецкий вместе: пиши мне что угодно, а можешь попросить у меня задание 🎯</div>
       <div id="toast"></div>
     </div>
+    <div id="lib" hidden style="padding:8px 12px;border-bottom:1px solid var(--line,#ddd);background:var(--card,#f6f3ea);font-size:13px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>📚 Библиотека</b><span id="libclock" style="font-variant-numeric:tabular-nums"></span>
+        <span id="libphase" style="flex:1;min-width:140px"></span>
+        <button type="button" class="mini" id="libnext">Дальше ▶</button><button type="button" class="mini" id="libstop">Закончить</button></div>
+      <div style="height:5px;background:var(--line,#ddd);border-radius:3px;margin-top:6px"><div id="libbar" style="height:5px;width:0;background:var(--known,#2a7);border-radius:3px"></div></div></div>
     <div id="msgs"><div class="note intro">Пиши Максу как другу — по-русски, по-украински или по-немецки. Ваша общая записная книжка (справа или кнопка 📓) меняется по ходу занятий: его прогресс — это и твой прогресс. <b>Нажми на фразу — она подставится в поле, останется дописать своё.</b>
       <details open style="margin-top:8px"><summary><b>🆕 Выучить новую тему (B2 / C1) вместе с Максом</b></summary>
         <div class="note" style="margin:4px 0">Напиши «Объясни тему», уровень и тему. Макс найдёт источники в интернете, объяснит по-русски, выучит ключевые слова вместе с тобой, а потом будет давать задания, пока вы оба не закрепите (кнопка «🎯 Учим до результата»).</div>
@@ -295,6 +300,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
       <button type="button" id="bookbtn" title="Загрузить книгу или учебник (PDF, EPUB, FB2, TXT) и работать по ней вместе с Максом">📚 Книга</button>
       <button type="button" id="topicbtn" title="Напиши тему в поле (например: Dativ) — Макс разберётся и объяснит">💡 Объясни тему</button>
       <button type="button" id="checkbtn" title="Напиши в поле своё предложение по-немецки — Макс проверит">✍ Проверь меня</button>
+      <button type="button" id="libbtn" title="60 минут интенсива, как в читальном зале: разминка, новая тема B2/C1, задания подряд, своё письмо, итоги">📚 Библиотека 60 мин</button>
       <button type="button" id="mapbtn" title="Карта грамматики до C1: что уже выучено (в любом порядке), что подзабыто и что взять дальше">🗺 Путь до C1</button>
       <button type="button" id="studybtn" title="Вставь немецкий текст или объяснение правила — Макс разберёт материал, объяснит его по-русски и начнёт обучение">📚 Разобрать и учить</button>
       <button type="button" id="thinkbtn" title="Попросить Макса продолжить незавершённую тему в облаке или выполнить отдельную задачу">💭 Макс, подумай</button>
@@ -612,7 +618,8 @@ async function send(m,mode,extra){
 }
 $('#in').addEventListener('input',()=>{$('#in').style.height='';$('#in').style.height=Math.min($('#in').scrollHeight,180)+'px'});
 $('#in').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#f').requestSubmit()}});
-$('#f').onsubmit=async e=>{e.preventDefault();const m=$('#in').value.trim();if(!m||$('#go').disabled)return;$('#go').disabled=true;const armed=taskAnswerArmed;taskAnswerArmed=false;let pending=false;try{pending=api.pending?await api.pending():false}catch{}send(m,armed||pending?'answer':undefined)};
+$('#f').onsubmit=async e=>{e.preventDefault();const m=$('#in').value.trim();if(!m||$('#go').disabled)return;
+  if(lib&&lib.active&&lib.phase_id==='write'){send(m,'check');return}$('#go').disabled=true;const armed=taskAnswerArmed;taskAnswerArmed=false;let pending=false;try{pending=api.pending?await api.pending():false}catch{}send(m,armed||pending?'answer':undefined)};
 // кнопки действий работают с текстом из поля; если поле пустое — подсказываем, что написать
 // ---- книга ----
 if(!(window.api&&api.book))$('#bookbtn').hidden=true;
@@ -698,6 +705,57 @@ function roadmapHtml(m){
   return h+'</div>';
 }
 $('#mapbtn').onclick=async()=>{const m=await api.roadmap(); add('bot',roadmapHtml(m))};
+// ---------- библиотека: 60 минут интенсива ----------
+let lib=null, libAlerted=-1;
+const mmss=ms=>{const s=Math.max(0,Math.round(ms/1000));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+function libDraw(){
+  const on=!!(lib&&lib.active); $('#lib').hidden=!on; if(!on)return;
+  const now=Date.now(), el=now-lib.start, left=Math.max(0,lib.phase_left-(now-lib._t));
+  $('#libclock').textContent=mmss(el)+' из 60:00';
+  $('#libphase').textContent=`Блок ${lib.phase+1}/${lib.phases.length}: ${lib.phase_title}${lib.phase_id!=='sum'?' · осталось '+mmss(left):''}`;
+  $('#libbar').style.width=Math.min(100,el/lib.total*100)+'%';
+  $('#libnext').hidden=lib.phase_id==='sum';
+  if(left<=0&&libAlerted!==lib.phase&&lib.phase_id!=='sum'){libAlerted=lib.phase;
+    try{window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning')}catch{}
+    const nx=lib.phases[lib.phase+1];
+    add('bot',`<div class="card">⏰ Время блока «${esc(lib.phase_title)}» вышло.${nx?` Дальше: <b>${esc(nx.title)}</b>.`:''}<div class="chips"><button class="chip2" data-act="libnext">▶ Следующий блок</button></div></div>`);}
+}
+async function libRefresh(){ if(!api.library)return; lib=await api.library.status(); if(lib)lib._t=Date.now(); libDraw(); }
+setInterval(libDraw,1000);
+// что делаем в начале каждого блока
+async function libEnter(){
+  const p=lib.phase_id;
+  if(p==='warm'){add('bot',`<div class="card">🤫 <b>Сели в читальном зале.</b> Час работаем без отвлечений: телефон — только для Макса 🙂<br>Начинаем с разминки — освежаем то, что начало забываться.</div>`);
+    send('🔁 Разминка: освежаем забывающееся','task',{review:true,again:true});}
+  else if(p==='topic'){const m=await api.roadmap();
+    add('bot',`<div class="sec">📚 Блок: новая тема</div><div class="card">Выбери тему уровня B2/C1 по карте — или впиши свою в поле и нажми «💡 Объясни тему». Можно прислать свой текст (🎓) или скриншот (📷).
+      <div class="chips">${m.next.map(n=>`<button class="chip2" data-act="learntopic" data-t="${esc('Объясни тему '+n.level+': '+n.name)}">${esc(n.level+' · '+n.name)}</button>`).join('')}</div></div>`);}
+  else if(p==='break'){add('bot',`<div class="card">☕ <b>Перерыв 5 минут.</b> Встань, потянись, попей воды. Мозг как раз раскладывает выученное по полочкам. Когда вернёшься — жми «Дальше ▶».</div>`);}
+  else if(p==='drill'){add('bot',`<div class="card">🔥 <b>Интенсив.</b> Задания идут подряд — отвечай, следующее появится сразу.</div>`);
+    send('🔥 Интенсив: задания подряд','task',{goal:true,again:true});}
+  else if(p==='write'){const w=lib.write||{};
+    add('bot',`<div class="sec">✍ Блок: пишем сами</div><div class="card">Напиши <b>5–8 предложений</b>: ${esc(w.situation||'')}.<br>Используй тему <b>${esc(w.topic||'')}</b> и хотя бы два коннектора уровня B2/C1 (zwar … aber, je … desto, angesichts, infolgedessen…).
+      <div class="note" style="margin-top:6px">Отправь текст одним сообщением — я проверю каждую ошибку. Можно отправить несколько вариантов.</div></div>`);
+    $('#in').placeholder='Твой текст на немецком — проверю…';}
+  else if(p==='sum'){const s=await api.library.stop(); await libRefresh(); $('#in').placeholder='Напиши Максу…'; add('bot',libSumHtml(s)); mood('happy',6000); bubble('Хорошо поработали! 🎉 Час в библиотеке — это серьёзно.');}
+}
+function libSumHtml(s){
+  if(!s)return '';
+  return `<div class="sec">🏁 Итоги часа в библиотеке</div><div class="card">
+    <div>⏱ ${s.minutes} мин · заданий <b>${s.tasks}</b> · результат <b>${s.pct}%</b>${s.tasks?` (верно ${s.ok}, частично ${s.partly})`:''}</div>
+    ${s.new_words.length?`<div style="margin-top:6px">🆕 Новые слова (${s.new_words.length}): ${esc(s.new_words.join(', '))}</div>`:''}
+    ${s.rules.length?`<div style="margin-top:6px">📈 Подтянули: ${s.rules.map(r=>esc(r.name)+' +'+r.delta+'%').join(', ')}</div>`:''}
+    ${(s.credit||[]).length?`<div class="note" style="margin-top:6px">🗺 В путь до C1: ${s.credit.map(c=>esc(c.name)+' ('+c.level+')').join(', ')}</div>`:''}
+    ${s.mistakes.length?`<div style="margin-top:6px">🔁 Повторить завтра: ${s.mistakes.map(esc).join('; ')}</div>`:''}
+    <div class="note" style="margin-top:6px">Завтра Макс напомнит повторить — это закрепит сегодняшний час.</div></div>`;
+}
+$('#libbtn').onclick=async()=>{ if($('#go').disabled)return;
+  if(lib&&lib.active){add('bot','<div class="card">Мы уже в библиотеке 📚 — смотри таймер наверху.</div>');return}
+  lib=await api.library.start(); lib._t=Date.now(); libAlerted=-1; libDraw(); libEnter(); };
+const libNext=async()=>{ if($('#go').disabled||!lib||!lib.active)return; lib=await api.library.next(); lib._t=Date.now(); libDraw(); libEnter(); };
+$('#libnext').onclick=libNext;
+$('#libstop').onclick=async()=>{ if(!lib||!lib.active)return; if(lib.phase_id!=='sum'){const s=await api.library.stop(); await libRefresh(); $('#in').placeholder='Напиши Максу…'; add('bot',libSumHtml(s));} };
+libRefresh();
 $('#studybtn').onclick=()=>{const m=$('#in').value.trim(); m?send(m,'study'):needText('Вставь немецкий текст или объяснение правила в поле и нажми «Разобрать и учить». Можно также прислать фото кнопкой 📷')};
 // скриншот: уменьшаем в браузере (до 1600 px, JPEG) и отправляем Максу; картинка не сохраняется, только распознанный текст
 const shrink=f=>new Promise((res,rej)=>{const img=new Image(),u=URL.createObjectURL(f);img.onload=()=>{const k=Math.min(1,1600/Math.max(img.width,img.height)),c=document.createElement('canvas');
@@ -739,6 +797,7 @@ $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе п�
   if(b.dataset.act==='openmap'){$('#mapbtn').click();return}
   if(b.dataset.act==='answertask'){taskAnswerArmed=true;$('#in').placeholder='Твой ответ на задание Макса…';$('#in').focus();toast('Следующее сообщение будет ответом на это задание.');return}
   if(b.dataset.act==='review'&&!$('#go').disabled){send('🔁 Повторим, что начали забывать','task',{review:true});return}
+  if(b.dataset.act==='libnext'){libNext();return}
   if(b.dataset.act==='learntopic'&&!$('#go').disabled){send(b.dataset.t,'topic');return}
   if(b.dataset.act==='traintopic'&&!$('#go').disabled){send('Закрепляем: учим до результата','task',{goal:true});return}
   if(b.dataset.act==='continuegoal'&&!$('#go').disabled){send('Продолжаем закреплять','task',{goal:true});return}

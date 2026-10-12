@@ -7,7 +7,7 @@ const READ_LEARN_SYSTEM = "Ты — Макс, парень, носитель р�
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-12 09:49";
+const APP_VERSION = "2026-10-13 01:19";
 const READ_PERSONA = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\n";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
@@ -257,6 +257,7 @@ const FORGOTTEN = 0.2;
     out.topic = !a.topic ? (b.topic || null) : !b.topic ? a.topic : (a.topic.t >= b.topic.t ? a.topic : b.topic);
     out.course = !a.course ? (b.course || null) : !b.course ? a.course : (a.course.t >= b.course.t ? a.course : b.course);
     out.goal = !a.goal ? (b.goal || null) : !b.goal ? a.goal : (a.goal.t >= b.goal.t ? a.goal : b.goal);
+    out.library = !a.library ? (b.library || null) : !b.library ? a.library : (a.library.t >= b.library.t ? a.library : b.library);
     out.drill = !a.drill ? (b.drill || null) : !b.drill ? a.drill : (a.drill.t >= b.drill.t ? a.drill : b.drill);
     out.book = !a.book ? (b.book || null) : !b.book ? a.book
       : a.book.id === b.book.id ? { ...(a.book.t >= b.book.t ? a.book : b.book), read: [...new Set([...(a.book.read || []), ...(b.book.read || [])])] }
@@ -1189,7 +1190,7 @@ const FORGOTTEN = 0.2;
   // ---------- друг: задания «от Макса», общий прогресс, поправки по ходу ----------
   // Прогресс общий: ваши результаты в заданиях укрепляют (или не укрепляют) те же слова и правила, что учит Макс.
   // Макс сам пробует задание, а ответы — и ваш, и его — проверяет нейтральный проверяющий.
-  const TASK_MAKE_SYSTEM = READ_PERSONA + `Ты предлагаешь другу задание по немецкому, которое ТЫ САМ уже попробовал выполнить; ответами вы обменяетесь, когда он ответит. Ниже наша общая записная книжка, фокус (что нам пора повторить или подтянуть) и наши недавние ошибки. Придумай задание ровно под наш уровень: чуть сложнее того, что мы уверенно делаем. В материале задания используй ТОЛЬКО слова из нашей записной книжки (максимум одно новое). Не говори о программах и проверках.
+  const TASK_MAKE_SYSTEM = READ_PERSONA + `Ты предлагаешь другу задание по немецкому, которое ТЫ САМ уже попробовал выполнить; ответами вы обменяетесь, когда он ответит. Ниже наша общая записная книжка, фокус (что нам пора повторить или подтянуть) и наши недавние ошибки. НАША ЦЕЛЬ — ГРАМОТНЫЙ C1. Задание уровня B2–C1: развёрнутое предложение (12–25 слов) с придаточными, книжными оборотами, конструкциями из фокуса; никаких детских фраз вроде «Ich bin zu Hause» или «Das Buch ist rot». Лучшие типы: перевод сложного русского предложения, переформулировка (номинализация, пассив и его замены, другой коннектор), составить предложение с заданной конструкцией; пропуск на одно слово — только если он проверяет тонкость (Konjunktiv I, предлог с Genitiv, склонение в длинной группе). В материале можно до трёх новых слов уровня B2–C1 — дай их перевод в скобках в task_ru. Свой вариант (my_answer_de) пиши честно на своём уровне. Не говори о программах и проверках.
 ТРЕБОВАНИЯ К ЗАДАНИЮ: ровно ОДНА тема и ОДНО действие. Не смешивай темы (нельзя «и окончания прилагательных, и Präteritum»). Либо ОДНО предложение с ОДНИМ пропуском ___, либо одно предложение на перевод/исправление. Формулировка простая, без сложных терминов. Другу должно быть сразу понятно, что именно написать в ответ.
 Верни ТОЛЬКО JSON-объект:
 {"intro_ru": "как ты предлагаешь задание другу: по-дружески, 1–2 предложения, скажи, что сам(а) уже попробовал и покажешь свой вариант после его ответа",
@@ -1268,10 +1269,16 @@ const FORGOTTEN = 0.2;
   }
   // Правило, которое давно не встречалось: «пора освежить». Учитывается и забытое (раньше оно выпадало из заданий навсегда),
   // и прочное, но давно не тронутое. Из лучших кандидатов выбор со случайностью, недавние фокусы не повторяются — темы чередуются.
+  // Цель — грамотный C1: школьная база (стартовые слова и правила A1–A2) в повторения и задания не попадает,
+  // кроме случаев, когда мы на ней недавно ошиблись. Время уходит на B2–C1.
+  const BASIC_RULES = new Set(['Präsens regelmäßige Verben', 'Präsens unregelmäßige Verben (e→i, a→ä)', 'Nominativ/Akkusativ, Artikel', 'Dativ (Artikel, Präpositionen mit Dativ)',
+    'Perfekt mit haben/sein', 'Hauptsatz: Verb auf Position 2, Inversion', 'Modalverben + Infinitiv am Ende', 'trennbare Verben']);
+  const recentMistakeItems = () => new Set((state.mistakes || []).slice(-8).flatMap(m => m.causes || []));
+  const isBasic = n => (BASIC_RULES.has(n) || (state.vocab[n] && state.vocab[n].how === 'школа/курсы')) && !recentMistakeItems().has(n);
   function reviewRules(exclude, n) {
     const now = Date.now(), recentFocus = new Set((state.recent_focus || []).slice(-6)), out = [];
     for (const rule of Object.keys(state.grammar)) {
-      if (exclude.has(rule) || recentFocus.has(rule)) continue;
+      if (exclude.has(rule) || recentFocus.has(rule) || isBasic(rule)) continue;
       const m = state.gmeta[rule] || {}, days = (now - (m.last || 0)) / DAY, r = recall(m.last || 0, m.stab || 1, now);
       if (days < 0.5) continue;
       out.push([(1 - r) + Math.min(days, 60) / 60 + Math.random() * 0.35, rule]);   // чем больше забыто и дольше не встречалось — тем раньше
@@ -1280,9 +1287,9 @@ const FORGOTTEN = 0.2;
   }
   function dueItems() {
     const now = Date.now(), seedCore = new Set(SEED.core || []);
-    const words = Object.entries(state.vocab).filter(([l, v]) => !seedCore.has(l) && v.strength >= 0.3 && recall(v.last, v.stab, now) < 0.7 && (now - v.last) / DAY > 0.3)
+    const words = Object.entries(state.vocab).filter(([l, v]) => !seedCore.has(l) && !isBasic(l) && v.strength >= 0.3 && recall(v.last, v.stab, now) < 0.7 && (now - v.last) / DAY > 0.3)
       .map(([l, v]) => [recall(v.last, v.stab, now), l]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
-    const rules = Object.keys(state.grammar).filter(r => { const m = state.gmeta[r] || {}; return (state.grammar[r] || 0) >= 0.3 && recall(m.last || 0, m.stab || 1, now) < 0.7 && (now - (m.last || 0)) / DAY > 0.3; });
+    const rules = Object.keys(state.grammar).filter(r => { const m = state.gmeta[r] || {}; return !isBasic(r) && (state.grammar[r] || 0) >= 0.3 && recall(m.last || 0, m.stab || 1, now) < 0.7 && (now - (m.last || 0)) / DAY > 0.3; });
     return { words, rules };
   }
   function pickFocus(opts = {}) {   // что нам пора повторить или подтянуть: забывающееся, слабое, недавние ошибки, давно не встречавшееся
@@ -1306,7 +1313,7 @@ const FORGOTTEN = 0.2;
     }
     const now = Date.now(), words = [], rules = [];
     for (const [l, v] of Object.entries(state.vocab)) {
-      if ((now - v.last) / DAY < 0.05) continue;
+      if ((now - v.last) / DAY < 0.05 || isBasic(l)) continue;
       const r = recall(v.last, v.stab, now); if (r < 0.85) words.push([r - Math.random() * 0.15, l]);
     }
     const recentCauses = new Set((state.mistakes || []).slice(-6).flatMap(m => m.causes || []));
@@ -1314,7 +1321,7 @@ const FORGOTTEN = 0.2;
     const recentFocus = new Set((state.recent_focus || []).slice(-4));
     for (const rule of Object.keys(state.grammar)) {
       const g = geff(rule), inTopic = topicRules.includes(rule) && g < 0.6;
-      if (!inTopic && (g > 0.75 || recentFocus.has(rule))) continue;
+      if (!inTopic && (g > 0.75 || recentFocus.has(rule) || isBasic(rule))) continue;
       rules.push([g - (recentCauses.has(rule) ? 0.3 : 0) - (inTopic ? 0.5 : 0) + Math.random() * 0.2, rule]);
     }
     const asc = (a, b) => a[0] - b[0];
@@ -1440,7 +1447,7 @@ const FORGOTTEN = 0.2;
     const rr = state.review_run, reviewing = task.review && rr && rr.n < 8 && (() => { const d = dueItems(); return d.words.length + d.rules.length > 0; })();
     if (reviewing) rr.n++;
     const drillPending = state.drill && state.drill.items && state.drill.i < state.drill.items.length;
-    const nextP = (goalActive() || reviewing || drillPending) && !task.course ? taskTurn(undefined, undefined, undefined, { chained: true, review: reviewing }).catch(() => null) : null;
+    const nextP = (goalActive() || reviewing || drillPending || (libActive() && ['warm', 'topic', 'drill'].includes((LIB_PHASES[state.library.phase] || {}).id))) && !task.course ? taskTurn(undefined, undefined, undefined, { chained: true, review: reviewing || (libActive() && (LIB_PHASES[state.library.phase] || {}).id === 'warm') }).catch(() => null) : null;
     const factsText = `ЗАДАНИЕ (${task.kind}): ${task.task_ru}\nМАТЕРИАЛ: ${task.task_de || '—'}${j.task_broken ? '\nВАЖНО: само задание было составлено неудачно (это ты его так придумал) — честно признай это другу' : ''}\nОТВЕТ ДРУГА: ${msg}\nПРОВЕРКА ОТВЕТА ДРУГА: ${{ ok: 'верно', partly: 'частично', wrong: 'неверно' }[u.verdict] || '?'}${(u.errors || []).length ? '; ошибки: ' + u.errors.join('; ') : ''}${u.correction ? '; правильно: ' + u.correction : ''}\n` +
       `ТВОЙ ВАРИАНТ: ${task.my_answer_de || '(не пробовал)'}${mx ? '\nПРОВЕРКА ТВОЕГО ВАРИАНТА: ' + ({ ok: 'верно', partly: 'частично', wrong: 'неверно' }[mx.verdict] || '?') + ((mx.errors || []).length ? '; ошибки: ' + mx.errors.join('; ') : '') : ''}\nЛАЙФХАК, КОТОРЫЙ ТЫ ХОТЕЛ ПОКАЗАТЬ: ${task.hack_ru}${goalFacts}`;
     const [react, next] = await Promise.all([askJson(TASK_REACT_SYSTEM, [{ role: 'user', content: `${notebookText()}\n\n${recentText()}${factsText}` }]), nextP]);
@@ -1614,6 +1621,56 @@ const FORGOTTEN = 0.2;
     return { reply, tokens, warning: null };
   }
 
+  // ---------- библиотека: 60 минут интенсива ----------
+  // Сессия из блоков (как в читальном зале): разминка-повторение → новая тема B2/C1 → перерыв → интенсив заданий → пишем сами → итоги.
+  // Время считается от старта (переживает закрытие приложения); блоки переключает друг кнопкой, приложение подсказывает, когда время вышло.
+  const LIB_PHASES = [
+    { id: 'warm', min: 7, title: 'Разминка: освежаем забывающееся' },
+    { id: 'topic', min: 15, title: 'Новая тема B2/C1' },
+    { id: 'break', min: 5, title: 'Перерыв: встань, попей воды' },
+    { id: 'drill', min: 20, title: 'Интенсив: задания подряд' },
+    { id: 'write', min: 9, title: 'Пишем сами: короткий текст' },
+    { id: 'sum', min: 4, title: 'Итоги' },
+  ];
+  const libActive = () => !!(state.library && !state.library.done && Date.now() - state.library.start < 90 * 60000);
+  const WRITE_SITUATIONS = ['письмо в администрацию с жалобой на шум', 'аргумент «за и против» удалённой работы', 'отзыв о книге или фильме', 'объяснение, почему ты учишь немецкий и чего хочешь достичь',
+    'рассказ о трудном решении, которое ты принял', 'комментарий к новости о климате', 'мотивационное письмо на работу или курс', 'сравнение жизни в большом городе и в деревне'];
+  function libraryStatus() {
+    const L = state.library; if (!L) return { active: false };
+    const now = Date.now(), ph = LIB_PHASES[L.phase] || LIB_PHASES[LIB_PHASES.length - 1];
+    return { active: libActive(), done: !!L.done, start: L.start, elapsed: now - L.start, total: 60 * 60000, phase: L.phase, phases: LIB_PHASES.map(p => ({ id: p.id, title: p.title, min: p.min })),
+      phase_id: ph.id, phase_title: ph.title, phase_left: Math.max(0, L.phase_t + ph.min * 60000 - now), write: L.write || null };
+  }
+  function librarySummary() {
+    const L = state.library; if (!L) return null;
+    const b = L.base, s = state.stats || { tasks: 0, ok: 0, partly: 0 };
+    const tasks = s.tasks - b.tasks, ok = s.ok - b.ok, partly = s.partly - b.partly;
+    const newWords = Object.keys(state.vocab).filter(l => !b.vocab.includes(l));
+    const grown = Object.keys(state.grammar).map(r => [r, (state.grammar[r] || 0) - (b.grammar[r] ?? 0)]).filter(([, d]) => d > 0.04).sort((x, y) => y[1] - x[1]).slice(0, 6)
+      .map(([r, d]) => ({ name: r, delta: Math.round(d * 100) }));
+    const mist = (state.mistakes || []).filter(m => m.t > L.start).slice(-4).map(m => `${m.user || m.wrong || ''} → ${m.correction || m.right || ''}`);
+    return { minutes: Math.round((Date.now() - L.start) / 60000), tasks, ok, partly, pct: tasks ? Math.round((ok + partly * 0.5) / tasks * 100) : 0, new_words: newWords.slice(0, 20), rules: grown, mistakes: mist,
+      credit: roadmapCredit(grown.map(g => g.name)) };
+  }
+  const libraryApi = {
+    start: async () => { await ready;
+      state.library = { t: Date.now(), start: Date.now(), phase: 0, phase_t: Date.now(), done: false,
+        base: { ...(state.stats || { tasks: 0, ok: 0, partly: 0 }), vocab: Object.keys(state.vocab), grammar: { ...state.grammar } } };
+      persist(); return libraryStatus(); },
+    status: async () => { await ready; return libraryStatus(); },
+    next: async () => { await ready; const L = state.library; if (!L) return libraryStatus();
+      L.phase = Math.min(L.phase + 1, LIB_PHASES.length - 1); L.phase_t = Date.now(); L.t = Date.now();
+      if (LIB_PHASES[L.phase].id === 'write') {   // тема письма: последняя тема + жизненная ситуация
+        const topic = (state.topic && state.topic.title) || (roadmap().next[0] || {}).name || 'Konnektoren';
+        L.write = { topic, situation: WRITE_SITUATIONS[Math.floor(Math.random() * WRITE_SITUATIONS.length)] };
+        if (state.task && !state.task.done) state.task.done = true;   // в блоке письма ответы идут на проверку текста, а не в задание
+      }
+      persist(); return libraryStatus(); },
+    stop: async () => { await ready; if (!state.library) return null; const sum = librarySummary(); state.library.done = true; state.library.t = Date.now();
+      remember('[закончили час в библиотеке]', `Час в библиотеке: заданий ${sum.tasks}, верно ${sum.pct}%, новых слов ${sum.new_words.length}.`); persist(); return sum; },
+    summary: async () => { await ready; return librarySummary(); },
+  };
+
   // ---------- путь до C1: карта грамматики B1 → B2 → C1 ----------
   // Темы можно учить в любом порядке (присланные тексты, скриншоты, «объясни тему»): всё, что выучено, само засчитывается на карте.
   // Засчитывает КОД, не модель: правило из нашей книжки сопоставляется с пунктом карты по ключевым словам, статус — по его силе.
@@ -1664,7 +1721,8 @@ const FORGOTTEN = 0.2;
     });
     const levels = ['B1', 'B2', 'C1'].map(l => { const its = items.filter(i => i.level === l);
       return { level: l, total: its.length, done: its.filter(i => i.status === 'done').length, learning: its.filter(i => i.status !== 'todo' && i.status !== 'done').length }; });
-    const cur = levels.find(l => l.done < Math.ceil(l.total * 0.8)) || levels[2];   // уровень «почти закрыт» при 80%
+    // цель C1: предлагаем темы с B2; B1 возвращается в список, только если что-то из него подзабыто
+    const cur = levels.find(l => l.level !== 'B1' && l.done < Math.ceil(l.total * 0.8)) || levels[2];
     const next = items.filter(i => i.level === cur.level && i.status !== 'done').sort((a, b) => ({ fading: 0, learning: 1, todo: 2 }[a.status] - { fading: 0, learning: 1, todo: 2 }[b.status])).slice(0, 3);
     return { items, levels, current: cur.level, next: next.map(i => ({ level: i.level, name: i.name, status: i.status })) };
   }
@@ -2014,6 +2072,7 @@ const FORGOTTEN = 0.2;
     },
     nudge: async () => { await progressReady; return nudge(); },
     pending: async () => { await progressReady; return !!(state.task && !state.task.done); },
+    library: libraryApi,
     roadmap: async () => { await ready; const d = dueItems(); return { ...roadmap(), due: { words: d.words.length, rules: d.rules.length, sample: [...d.rules.slice(0, 2), ...d.words.slice(0, 5)] } }; },
     goalPause: async () => { await ready; if (state.goal && state.goal.status === 'active') { state.goal.status = 'paused'; persist(); } return true; },
     skipTask: async () => { await ready; if (state.task) { state.task.done = true; persist(); } return true; },
