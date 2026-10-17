@@ -36,7 +36,7 @@ form{padding-bottom:max(12px,env(safe-area-inset-bottom))!important;border-top:0
 header{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;background:var(--panel)}
 header h1{font-size:16px;margin:0;flex:1}
 header button{border:1px solid var(--line);background:none;color:var(--ink);border-radius:6px;padding:4px 10px;cursor:pointer}
-main{flex:1;display:grid;grid-template-columns:1fr 340px;min-height:0}
+main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:0}
 #nb{display:none}
 @media(max-width:800px){main{grid-template-columns:1fr}aside{display:none}
   #nb{display:inline-block}#stat{display:none}
@@ -44,7 +44,7 @@ main{flex:1;display:grid;grid-template-columns:1fr 340px;min-height:0}
   header button,header select{padding:4px 7px;font-size:12px;white-space:nowrap;max-width:110px}
   body.nb aside{display:block;position:fixed;left:0;right:0;bottom:0;top:var(--hh,49px);z-index:5;border:0}
   #who{width:70px}#char{width:66px;height:72px}#rank{display:none}#bubble{font-size:14px;min-height:0;max-height:92px;overflow-y:auto;padding:8px 10px}#stage{padding:6px 10px;gap:8px}}
-#chat{display:flex;flex-direction:column;min-height:0}
+#chat{display:flex;flex-direction:column;min-height:0;min-width:0}   /* min-width:0: ряд кнопок #tools не распирает колонку чата шире окна */
 #msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
 .me{align-self:flex-end;background:var(--me);padding:8px 12px;border-radius:12px;max-width:80%}
 .bot{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;max-width:92%}
@@ -142,6 +142,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   <button id="helpbtn" title="Как со мной говорить: примеры фраз и что делают кнопки">❓ Помощь</button>
   <button id="themebtn" type="button" title="Переключить тему оформления" aria-label="Переключить тему оформления">🌙</button>
   <button id="sync" hidden title="Синхронизация между устройствами через Telegram">☁</button>
+  <button id="langbtn" hidden></button>
   <button id="nb">📓 Книжка</button>
   <button id="cfg">⚙ Настройки</button>
   <button id="reset">Сбросить память</button>
@@ -253,9 +254,9 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
         <button type="button" class="mini" id="libnext">Дальше ▶</button><button type="button" class="mini" id="libstop">Закончить</button></div>
       <div style="height:5px;background:var(--line,#ddd);border-radius:3px;margin-top:6px"><div id="libbar" style="height:5px;width:0;background:var(--known,#2a7);border-radius:3px"></div></div></div>
     <div id="msgs"><div class="note intro">Пиши Максу как другу — по-русски, по-украински или по-немецки. Ваша общая записная книжка (справа или кнопка 📓) меняется по ходу занятий: его прогресс — это и твой прогресс. <b>Нажми на фразу — она подставится в поле, останется дописать своё.</b>
-      <details open style="margin-top:8px"><summary><b>🆕 Выучить новую тему (B2 / C1) вместе с Максом</b></summary>
+      <details open style="margin-top:8px"><summary id="topicsum"><b>🆕 Выучить новую тему (B2 / C1) вместе с Максом</b></summary>
         <div class="note" style="margin:4px 0">Напиши «Объясни тему», уровень и тему. Макс найдёт источники в интернете, объяснит по-русски, выучит ключевые слова вместе с тобой, а потом будет давать задания, пока вы оба не закрепите (кнопка «🎯 Учим до результата»).</div>
-        <div class="chips">
+        <div class="chips" id="topicchips">
           <button class="chip2" data-fill="Объясни тему B2: Konjunktiv I (косвенная речь)">B2 · Konjunktiv I (косвенная речь)</button>
           <button class="chip2" data-fill="Объясни тему B2: Passiv und Passiversatzformen">B2 · Passiv и его замены</button>
           <button class="chip2" data-fill="Объясни тему B2: Konnektoren obwohl, trotzdem, dennoch, zwar … aber">B2 · Konnektoren (obwohl, trotzdem…)</button>
@@ -275,7 +276,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
           <button class="chip2" data-fill="Понимаешь? ">📖 Понимаешь? (текст или ссылка на статью)</button>
         </div></details>
       <details style="margin-top:6px"><summary><b>✍ Проверка твоих предложений</b></summary>
-        <div class="chips">
+        <div class="chips" id="checkchips">
           <button class="chip2" data-fill="Проверь: Ich habe gestern ein Buch gekauft.">✍ Проверь: Ich habe gestern ein Buch gekauft.</button>
           <button class="chip2" data-fill="Проверь: ">✍ Проверь: (и своё предложение)</button>
         </div></details>
@@ -286,7 +287,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
           <button class="chip2" data-fill="Закрепляем до результата">🎯 Закрепляем до результата</button>
         </div></details>
       <details style="margin-top:6px"><summary><b>🔎 Слова и вопросы</b></summary>
-        <div class="chips">
+        <div class="chips" id="wordchips">
           <button class="chip2" data-fill="Знаешь слово Verspätung? Как оно переводится?">Знаешь слово Verspätung?</button>
           <button class="chip2" data-fill="В чём разница между dass и weil?">В чём разница между dass и weil?</button>
           <button class="chip2" data-fill="Как строить Nebensatz с weil?">Как строить Nebensatz с weil?</button>
@@ -316,7 +317,7 @@ dialog .row button.pri{background:var(--accent);color:#fff;border:0}
   </aside>
 </main>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script>try{Telegram.WebApp.ready();Telegram.WebApp.expand()}catch(e){}</script>
+<script>try{Telegram.WebApp.ready();Telegram.WebApp.expand();Telegram.WebApp.disableVerticalSwipes&&Telegram.WebApp.disableVerticalSwipes()}catch(e){}</script>
 <script src="brain.js"></script>
 <script>
 const $=s=>document.querySelector(s);
@@ -327,6 +328,45 @@ const api=window.api||{state:()=>jfetch('/api/state'),reset:()=>jfetch('/api/res
   skip:d=>jfetch('/api/skip',{days:d}),
   getSettings:()=>jfetch('/api/settings'),saveSettings:o=>jfetch('/api/settings',o)};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- язык: 🇩🇪 немецкий / 🇬🇧 английский (у каждого своя память; переключение перезагружает страницу) ----------
+const EN=(api.lang||'de')==='en';   // не LANG: так уже называется глобальная константа в brain.js
+// английские подсказки вместо немецких; меняем до того, как интро запомнится для кнопки ❓
+if(EN){
+  const chips=(sel,list)=>{const el=document.querySelector(sel); if(el)el.innerHTML=list.map(([f,t])=>`<button class="chip2" data-fill="${esc(f)}">${esc(t)}</button>`).join('')};
+  chips('#topicchips',[['Объясни тему A1: to be (am, is, are)','A1 · to be: am / is / are'],['Объясни тему A1: Present Simple','A1 · Present Simple'],['Объясни тему A1: артикли a, an, the','A1 · Артикли a / an / the'],
+    ['Объясни тему A2: Past Simple, неправильные глаголы','A2 · Past Simple'],['Объясни тему A2: will или going to','A2 · will / going to'],['Объясни тему A2: Present Perfect','A2 · Present Perfect'],
+    ['Объясни тему B1: First и Second Conditional','B1 · Conditionals'],['Объясни тему B1: Passive Voice','B1 · Passive'],['Объясни тему B2: Third Conditional и wish','B2 · Third Conditional, wish'],['Объясни тему B2: phrasal verbs и коллокации','B2 · Phrasal verbs']]);
+  chips('#checkchips',[['Проверь: Yesterday I go to the shop.','✍ Проверь: Yesterday I go to the shop.'],['Проверь: ','✍ Проверь: (и своё предложение)']]);
+  chips('#wordchips',[['Знаешь слово delay? Как оно переводится?','Знаешь слово delay?'],['В чём разница между make и do?','В чём разница между make и do?'],['Когда нужен артикль the, а когда a?','Артикль the или a?']]);
+  const t=document.querySelector('#topicsum'); if(t)t.innerHTML='<b>🆕 Выучить новую тему (A1 → B2) вместе с Максом</b>';
+}
+// остальные надписи интерфейса и карточек: «немецкий» → «английский», цель C1 → B2 (свои сообщения друга не трогаем)
+const UI_EN=[[/немецк/g,'английск'],[/Немецк/g,'Английск'],[/грамотного C1/g,'уверенного B2'],[/до C1/g,'до B2'],[/тему уровня B2\/C1 по карте/g,'тему по карте'],[/коннектора уровня B2\/C1/g,'связующих слова'],[/B2 ?\/ ?C1/g,'по карте'],
+  [/\(zwar … aber, je … desto, angesichts, infolgedessen…\)/g,'(because, but, however, although…)'],[/\(например: Dativ\)/g,'(например: Present Perfect)']];
+const langText=t=>{for(const [re,to] of UI_EN)t=t.replace(re,to);return t};
+const LANG_ATTRS=['title','placeholder','data-fill','data-t'];
+const fixAttrs=el=>{for(const a of LANG_ATTRS){const v=el.getAttribute(a);if(v){const n=langText(v);if(n!==v)el.setAttribute(a,n)}}};
+const skipNode=el=>el.closest('.me,script,style');
+function langUI(root){
+  if(!EN||!root)return;
+  const host=root.nodeType===3?root.parentElement:root;
+  if(!host||host.nodeType!==1||skipNode(host))return;
+  if(root.nodeType===3){const v=langText(root.nodeValue);if(v!==root.nodeValue)root.nodeValue=v;return}
+  fixAttrs(root);
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT,{acceptNode:n=>n.nodeType===1&&n.matches('.me,script,style')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});
+  for(let n=w.nextNode();n;n=w.nextNode()){if(n.nodeType===3){const v=langText(n.nodeValue);if(v!==n.nodeValue)n.nodeValue=v}else fixAttrs(n)}
+}
+if(EN){
+  document.title=langText(document.title); langUI(document.body);
+  new MutationObserver(ms=>{for(const m of ms){if(m.type==='attributes')langUI(m.target);else if(m.type==='characterData')langUI(m.target);else m.addedNodes.forEach(langUI)}})
+    .observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['title','placeholder','data-fill','data-t']});
+}
+const switchLang=async to=>{await api.setLang(to);location.reload()};
+window.addEventListener('learner-lang',()=>location.reload());
+if(api.setLang){const lb=$('#langbtn');lb.hidden=false;lb.textContent=EN?'🇬🇧 English':'🇩🇪 Deutsch';
+  lb.title=EN?'Сейчас учим английский. Нажми, чтобы перейти к немецкому (у каждого языка своя память)':'Сейчас учим немецкий. Нажми, чтобы перейти к английскому (у каждого языка своя память)';
+  lb.onclick=()=>{if($('#go').disabled){toast('Подожди, Макс ещё отвечает…');return}switchLang(EN?'de':'en')}}
 const STRAT={cognate_ru:'похоже на русское',cognate_uk:'похоже на украинское',morphology:'разбор слова',context:'догадка по контексту',mnemonic:'мнемоника',grammar_contrast:'сравнение грамматики',ask:'спрашиваю',lookup:'посмотрел в словаре'};
 const ST={known:'знаю',guess:'догадка',forgot:'смутно помню',unknown:'не знаю'};
 const WS={known:['--known',''],fading:['--shaky','подзабыл'],shaky:['--shaky','шаткое'],forgotten:['--unk','забыл']};
@@ -548,6 +588,7 @@ function botHtml(d){
         <button class="mini" data-act="quiz" data-lemma="${esc(i.lemma)}">Спросить его</button></div>`
         :`<div class="note" style="margin-top:6px">Правило: ${esc(i.rule)}</div>`).join('')}</div>`;
   }
+  if(d.lang_limit)h+=`<div class="card">⏰ Английскому сегодня уже около ${d.lang_limit} минут — отлично! Немецкий у нас основной: давай переключимся на него, а английский продолжим завтра.<div class="chips"><button class="chip2" data-act="switchlang">🇩🇪 Перейти к немецкому</button></div></div>`;
   if((d.model_switch||[]).length)h+=d.model_switch.map(t=>`<div class="warn" style="border-color:var(--accent,#7aa2ff)">🔄 ${esc(t)}</div>`).join('');
   if(d.warning)h+=`<div class="warn">Не удалось полностью избежать незнакомых слов: ${esc(d.warning)}</div>`;
   return h;
@@ -580,8 +621,9 @@ restoreFeed().then(()=>{ if(api.nudge)api.nudge().then(t=>{ if(!t)return; if(typ
     if(t.review)add('bot',`<div class="card">🔁 ${esc(t.text)}<div class="chips"><button class="chip2" data-act="review">🔁 Повторить сейчас</button><button class="chip2" data-act="openmap">🗺 Что именно забывается</button></div></div>`); }); refreshPending(); });
 // Telegram: высота окна с учётом клавиатуры и системных полос, чтобы поле ввода не пряталось под ними
 if(window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData){
-  const fitApp=()=>document.documentElement.style.setProperty('--app-h',(Telegram.WebApp.viewportHeight||innerHeight)+'px');
-  try{Telegram.WebApp.onEvent('viewportChanged',fitApp)}catch(e){} fitApp();
+  // устойчивая высота: viewportHeight меняется на каждом кадре, пока окно тянут или выезжает клавиатура, и экран дёргался
+  const fitApp=()=>document.documentElement.style.setProperty('--app-h',(Telegram.WebApp.viewportStableHeight||Telegram.WebApp.viewportHeight||innerHeight)+'px');
+  try{Telegram.WebApp.onEvent('viewportChanged',e=>{if(!e||e.isStateStable!==false)fitApp()})}catch(e){} fitApp();
 }
 window.addEventListener('learner-sync',()=>{ if(api.feed)api.feed().then(items=>{const fresh=items.filter(i=>!shown.has(i.id));if(fresh.length){fresh.forEach(renderFeedItem);}}); });
 
@@ -795,6 +837,7 @@ $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе п�
   if(chip){ $('#in').value=chip.dataset.fill; $('#in').focus(); return }
   const b=e.target.closest('button[data-act]'); if(!b)return;
   if(b.dataset.act==='openmap'){$('#mapbtn').click();return}
+  if(b.dataset.act==='switchlang'&&!$('#go').disabled){switchLang('de');return}
   if(b.dataset.act==='answertask'){taskAnswerArmed=true;$('#in').placeholder='Твой ответ на задание Макса…';$('#in').focus();toast('Следующее сообщение будет ответом на это задание.');return}
   if(b.dataset.act==='review'&&!$('#go').disabled){send('🔁 Повторим, что начали забывать','task',{review:true});return}
   if(b.dataset.act==='libnext'){libNext();return}
@@ -813,8 +856,8 @@ $('#msgs').addEventListener('click',e=>{   // кнопки в просьбе п�
   if(b.dataset.act==='newtask'){send('Дай другое задание','task');return}
   if(b.dataset.act==='skiptask'){api.skipTask().then(()=>{b.closest('.card').insertAdjacentHTML('beforeend','<div class="note">Пропустили. Если захочешь, жми 🎯.</div>');});return}
   const w=b.dataset.lemma;
-  if(b.dataset.act==='remind')send(`Das Wort „${w}“ bedeutet: ${b.dataset.ru}.`);
-  else send(`Was bedeutet „${w}“?`);
+  if(b.dataset.act==='remind')send(EN?`The word "${w}" means: ${b.dataset.ru}.`:`Das Wort „${w}“ bedeutet: ${b.dataset.ru}.`);
+  else send(EN?`What does "${w}" mean?`:`Was bedeutet „${w}“?`);
 });
 $('#reset').onclick=async()=>{
   if(!confirm('Сбросить память ученика до начального состояния?'))return;
