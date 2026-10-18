@@ -627,6 +627,9 @@ if(window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData){
   const fitApp=()=>document.documentElement.style.setProperty('--app-h',(Telegram.WebApp.viewportStableHeight||Telegram.WebApp.viewportHeight||innerHeight)+'px');
   try{Telegram.WebApp.onEvent('viewportChanged',e=>{if(!e||e.isStateStable!==false)fitApp()})}catch(e){} fitApp();
 }
+// эксперт проверил задание в фоне и поправил его: показываем новую версию (ответ проверим по ней)
+window.addEventListener('learner-task-fixed',e=>{const x=e.detail||{};
+  add('bot',`<div class="card">✏️ <b>Я чуть поправил задание</b>${x.problem_ru?` <span class="note">(${esc(x.problem_ru)})</span>`:''}:<div style="margin-top:4px">${esc(x.task_ru||'')}</div>${x.task_de?`<div class="say" style="margin-top:4px">${esc(x.task_de)}</div>`:''}<div class="note" style="margin-top:4px">Если уже ответил на старую версию — ничего страшного, засчитаю по ней.</div></div>`);});
 window.addEventListener('learner-sync',()=>{ if(api.feed)api.feed().then(items=>{const fresh=items.filter(i=>!shown.has(i.id));if(fresh.length){fresh.forEach(renderFeedItem);}}); });
 
 async function send(m,mode,extra){
@@ -637,9 +640,13 @@ async function send(m,mode,extra){
   const hasUrl=/https?:\/\/\S+/.test(m), gram=mode==='grammar';
   if(mode==='task'){mood('think');bubble('Сейчас придумаю, что нам попробовать…',true)}
   const wait=add('bot note',mode==='study'?(extra&&extra.images?'Распознаю скриншот, ищу тему в интернете, учусь и готовлю задания… (до минуты)':'Изучаю текст: тема, стиль, грамматика, ищу в интернете, готовлю задания… (до минуты)'):mode==='task'?'Макс придумывает задание и пробует его сам…':gram?'Разбираю грамматику: перевожу, ищу, чему надо научиться…':hasUrl?'Открываю ссылку и читаю статью…':reading?'Читаю текст, сверяюсь с записной книжкой…':'Ученик думает…');
+  // счётчик секунд: видно, что Макс не завис; на долгом ожидании — подсказка про модель
+  const t0=Date.now(), clock=document.createElement('span'); clock.className='waitclock'; wait.append(clock);
+  const tick=setInterval(()=>{const sec=Math.round((Date.now()-t0)/1000); clock.textContent=` · ${sec} с`+(sec>=45?' (модель сегодня медленная; дольше 2,5 мин ждать не буду)':'')},1000);
   mood('think'); bubble(gram?'Так, давайте разберёмся, как это переводится и чему мне надо научиться…':hasUrl?'Открываю статью…':reading?'Читаю… Посмотрим, что я тут понимаю.':'Хм… (если не знаю слова — загляну в словарь)',true);
   try{
     const d=await api.chat(m,mode,extra);
+    clearInterval(tick);
     autoTask=!!(d.reply&&d.reply.auto_task);
     if(extra&&extra.chunk!=null&&mode==='read'&&api.book)await api.book.markRead(extra.chunk,true);   // прочитали фрагмент — идём дальше
     wait.className='bot'; wait.innerHTML=botHtml(d); renderState(d.state);
@@ -655,7 +662,7 @@ async function send(m,mode,extra){
       (g?`<div class="gloss">📖 Понимал ${Math.round(g.coverage_before*100)}% → теперь ${Math.round(g.coverage_after*100)}%</div>`:'')+
       (r.review_request?`<div class="gloss">🔁 ${esc(r.review_request.text_ru)}</div>`:'')+
       (r.taskResult&&r.taskResult.react_ru?`<div class="gloss">${esc(r.taskResult.react_ru)}</div>`:''));
-  }catch(err){wait.className='bot warn'; wait.textContent='Ошибка: '+err.message; mood('confused',5000); bubble('Что-то пошло не так (см. сообщение ниже).',true); if(/ключ|key/i.test(err.message))openSettings()}
+  }catch(err){clearInterval(tick); wait.className='bot warn'; wait.textContent='Ошибка: '+err.message; mood('confused',5000); bubble('Что-то пошло не так (см. сообщение ниже).',true); if(/ключ|key/i.test(err.message))openSettings()}
   document.querySelectorAll('#tools button,#go').forEach(b=>b.disabled=false); refreshPending(); $('#in').focus(); wait.scrollIntoView({block:'end'});
   // после разбора/темы первое задание запрашиваем отдельно: результат виден сразу, задание догружается следом
   if(autoTask)setTimeout(()=>send('Первое задание по разобранному','task',{again:true}),200);

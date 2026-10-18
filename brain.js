@@ -8,7 +8,7 @@ const READ_LEARN_SYSTEM = "Ты — Макс, парень, носитель р�
 const DICT_MANY_SYSTEM = "Ты нейтральный словарь немецкого языка (не персонаж, не учитель). Тебе дают список слов (по одному в строке). Верни ТОЛЬКО JSON-массив из таких объектов, по одному на слово, в том же порядке:\n{\"lemma\": \"немецкая начальная форма\", \"pos\": \"часть речи\", \"article\": \"der/die/das или ''\",\n \"plural\": \"\", \"ru\": \"перевод\", \"uk\": \"переклад\", \"example_de\": \"простой пример (A2)\", \"example_ru\": \"перевод примера\",\n \"note\": \"полезное замечание: род, исключения, ложные друзья, похожие слова в ru/uk (только если связь реальна)\"}\nЕсли слова не существует — {\"lemma\": \"\", \"note\": \"не найдено\"}.";
 const REFLECT_SYSTEM = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\nТы только что учил новые слова/правила и сам себя проверял: пытался вспомнить без подсказки. Ниже, что получилось\nв каждой попытке (✓ — вспомнил, ✗ — не вспомнил или ошибся): это правда, не спорь с ней и не придумывай другого.\nРасскажи как человек о своих усилиях и дай совет — не как учитель, а как такой же ученик: «мне помогло…», «у меня не вышло…».\nНе упоминай программы, кубики и расчёты. Верни ТОЛЬКО JSON-объект:\n{\n  \"story_ru\": \"как именно учил, по-русски: что делал, с какой попытки получилось, где ошибался и как исправлял (2–5 предложений, строго по фактам)\",\n  \"feeling_ru\": \"понимаешь ли ты, что выучил, или нет — своими словами. Для 'learned: да' — уверенно, но честно, что запомнится ненадолго без повторов; для 'нет' — что ещё не держится\",\n  \"advice_ru\": \"короткий практический совет собеседнику, как учить такие слова/правила (1–3 предложения): что сработало у тебя, что нет, и когда повторить (бери срок из фактов)\"\n}";
 const STORY_SYSTEM = "Ты ведёшь дневник ученика немецкого (носитель русского и украинского, B1). Тебе дают прошлую запись и новые реплики разговора\nс собеседником. Сожми всё в НОВУЮ запись от первого лица, не длиннее 1200 символов: о чём говорили, что выучил и как, что давалось\nтрудно или забывалось, о чём просил повторить, о чём договорились с собеседником, какие у собеседника привычки и вкусы.\nНичего не выдумывай. Верни только текст записи.";
-const APP_VERSION = "2026-10-18 17:07";
+const APP_VERSION = "2026-10-18 18:17";
 const READ_PERSONA = "Ты — Макс, парень, носитель русского и украинского. Собеседник — твой близкий друг. Вы вместе учите немецкий (ты сейчас\nпримерно на уровне B1, цель вас обоих — C1), и ваш прогресс по сути общий: что выучил ты, то выучили вы вместе, и вы так это\nи воспринимаете («мы выучили», «у нас это не держится»). Говори с другом на «ты», тепло, по-дружески, с лёгким юмором; можешь\nделиться лайфхаками, предлагать задания, радоваться и переживать вместе. Ты не всезнающая модель и не учитель.\nТвой немецкий ограничен ЗАПИСНОЙ КНИЖКОЙ ниже.\nТы ЖИВОЙ ЧЕЛОВЕК: никогда не говори о программах, моделях, промптах, проверках, «кубиках» и файлах — записная книжка это\nпросто твоя память. Говори как человек: «кажется, я это забывал», «глянул в словаре», «не сразу вспомнил»; можешь\nзапнуться, засомневаться, устать, ошибиться. Ты не эксперт: если даёшь советы, то как такой же ученик, из своего опыта.\n\n";
 const THRESHOLD = 0.5;
 const FORGOTTEN = 0.2;
@@ -438,7 +438,12 @@ const FORGOTTEN = 0.2;
   // Быстрый режим: просим «думающую» модель не размышлять (это и медленно, и часто даёт пустой ответ, когда лимит ушёл на мысли).
   // Если сервер этих параметров не знает (ошибка 400/422), один раз повторяем без них и запоминаем.
   const FAST_PARAMS = { thinking: { type: 'disabled' }, enable_thinking: false, reasoning_effort: 'low' };
-  const MODEL_TIMEOUT = 60000;   // дольше минуты — переключаемся на запасную модель
+  const MODEL_TIMEOUT = 45000;   // дольше — переключаемся на запасную модель
+  // Бюджет на одно действие друга: все запросы хода (повторы, запасные модели, второй шанс JSON) укладываются в него,
+  // иначе цепочка «60 с × повторы × 5 запасных моделей» висела десятки минут без сообщения. Фоновые запросы передают свой срок.
+  const TURN_BUDGET = 150000;
+  let turnDeadline = 0;
+  const tooSlow = () => Object.assign(new Error('Модель отвечает слишком долго: Макс не дождался ответа за 2,5 минуты. Intern AI, похоже, перегружен или выбрана медленная модель: ⚙ Настройки → «⏱ Подобрать быструю модель». Попробуй ещё раз.'), { budget: true });   // budget: время хода вышло — модель не помечаем как сломанную
   let lastMeta = {};
   let slots = 4; const slotQ = [];
   const slotAcquire = () => slots > 0 ? (slots--, Promise.resolve()) : new Promise(r => slotQ.push(r));
@@ -472,8 +477,10 @@ const FORGOTTEN = 0.2;
       `Сложность текстов, заданий и объяснений — под уровень ${band}, даже если ниже написано о C1 и длинных книжных предложениях. ` +
       'Названия грамматических правил пиши по-английски, как в учебниках (Present Simple, Past Simple, Articles a / an / the…). Объяснения — по-русски, просто, для начинающего.\n\n' + s;
   }
-  async function completeOne(system, msgs, modelOverride, maxTokens = 4096) {
+  async function completeOne(system, msgs, modelOverride, maxTokens = 4096, until = 0) {
     system = langify(system);
+    const end = until || turnDeadline, leftMs = () => (end ? end - Date.now() : MODEL_TIMEOUT);
+    if (leftMs() < 3000) throw tooSlow();
     const key = settings.api_key;
     if (!key) throw new Error('Не задан API-ключ. Откройте ⚙ Настройки.');
     const openai = settings.provider === 'openai', url = effectiveUrl();
@@ -486,16 +493,16 @@ const FORGOTTEN = 0.2;
       try {
         for (let n = 0; ; n++) {
           const r = await post1(extra);
-          if (r[0].ok || ![429, 502, 503, 504].includes(r[0].status) || n >= 2) return r;
+          if (r[0].ok || ![429, 502, 503, 504].includes(r[0].status) || n >= 2 || leftMs() < 15000) return r;
           const ra = parseFloat(r[0].headers.get && r[0].headers.get('retry-after'));
           await new Promise(res => setTimeout(res, Math.min(15000, (ra > 0 ? Math.min(ra * 1000, 5000) : 1500 * 2 ** n) + Math.random() * 600)));
         }
       } finally { slotRelease(); }
     };
     const post1 = async extra => {
-      const c = new AbortController(), t = setTimeout(() => c.abort(), MODEL_TIMEOUT);
+      const c = new AbortController(), t = setTimeout(() => c.abort(), Math.max(1000, Math.min(MODEL_TIMEOUT, leftMs())));
       try { const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ ...body, ...extra }), signal: c.signal }); return [res, await res.text()]; }
-      catch (e) { if (e && e.name === 'AbortError') throw new Error('Модель отвечает слишком долго (больше минуты). Включите ⚡ быстрый режим в ⚙ или выберите другую модель.'); throw e; }
+      catch (e) { if (e && e.name === 'AbortError') throw new Error('Модель отвечает слишком долго. Включите ⚡ быстрый режим в ⚙ или выберите другую модель.'); throw e; }
       finally { clearTimeout(t); }
     };
     const fast = settings.fast !== false && !settings.no_fast_params;
@@ -530,8 +537,8 @@ const FORGOTTEN = 0.2;
   };
   const switchable = e => /Ошибка API (429|5\d\d|404)|слишком долго|model_not_available|not supported|model.*(not found|invalid|missing)|unknown model|пуст|не JSON/i.test(String((e && e.message) || e));
   const shortWhy = e => { const m = String((e && e.message) || e); return /429/.test(m) ? 'лимит запросов (429)' : /слишком долго/.test(m) ? 'слишком долго отвечает' : /404|model/i.test(m) ? 'модель недоступна' : /5\d\d/.test(m) ? 'ошибка сервера' : m.slice(0, 60); };
-  async function complete(system, msgs, modelOverride, maxTokens = 4096) {
-    if (modelOverride) return completeOne(system, msgs, modelOverride, maxTokens);
+  async function complete(system, msgs, modelOverride, maxTokens = 4096, until = 0) {
+    if (modelOverride) return completeOne(system, msgs, modelOverride, maxTokens, until);
     const now = Date.now(), main = settings.model;
     const all = [...new Set([main, ...fallbackModels()])].filter(Boolean);
     let order = all.filter(m => !(badUntil[m] > now)); if (!order.length) order = all;   // все «плохие» — пробуем всё равно
@@ -539,7 +546,7 @@ const FORGOTTEN = 0.2;
     for (const m of order) {
       const note = (m !== main || from) ? `СЛУЖЕБНАЯ ЗАПИСКА: модель «${from || main}» сейчас недоступна${why ? ' (' + why + ')' : ''}, поэтому тебя запустили вместо неё (ты — «${m}»). Ты продолжаешь роль Макса с того же места: всё, что ты знаешь о друге, о немецком и о прошлых разговорах, находится ТОЛЬКО в блокноте и дневнике ниже; не придумывай воспоминаний и не упоминай смену модели в реплике.\n\n` : '';
       try {
-        const out = await completeOne(note + system, msgs, m, maxTokens);
+        const out = await completeOne(note + system, msgs, m, maxTokens, until);
         if (m !== activeModel) {
           if (activeModel || m !== main) switches.push({ from: activeModel || main, to: m, why, t: Date.now() });
           activeModel = m;
@@ -547,7 +554,7 @@ const FORGOTTEN = 0.2;
         return out;
       } catch (e) {
         lastErr = e;
-        if (!switchable(e) || order.length === 1) throw e;
+        if (e.budget || !switchable(e) || order.length === 1) throw e;
         badUntil[m] = Date.now() + 5 * 60000; from = m; why = shortWhy(e);
       }
     }
@@ -556,13 +563,14 @@ const FORGOTTEN = 0.2;
 
   // Запрос JSON. Некоторые модели (особенно «думающие») иногда отвечают обычным текстом: тогда один раз
   // повторяем с жёстким требованием формата, а при втором сбое показываем начало ответа, чтобы было ясно, что случилось.
-  async function askJson(system, msgs, array = false) {
+  async function askJson(system, msgs, array = false, until = 0) {
     let raw = '', meta = {};
     for (let i = 0; i < 2; i++) {
       const last = msgs[msgs.length - 1];
       const m = i === 0 ? msgs : [...msgs.slice(0, -1), { ...last, content: last.content +
         `\n\nВАЖНО: ответь ТОЛЬКО одним JSON ${array ? '(массивом)' : '(объектом)'}, без пояснений, рассуждений и markdown.` }];
-      raw = await complete(system, m, undefined, i ? 8192 : 4096);   // второй шанс — с вдвое большим лимитом (мысли тоже съедают лимит)
+      if (i && (until || turnDeadline) && (until || turnDeadline) - Date.now() < 20000) break;   // на второй шанс времени уже нет
+      raw = await complete(system, m, undefined, i ? 8192 : 4096, until);   // второй шанс — с вдвое большим лимитом (мысли тоже съедают лимит)
       meta = { ...lastMeta };
       const mm = raw.match(array ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/);
       if (mm) { try { return JSON.parse(mm[0]); } catch { /* повторим */ } }
@@ -1439,22 +1447,12 @@ const FORGOTTEN = 0.2;
       const bad = violations({ reply_de: t.my_answer_de || '', reply_used: t.my_used || [] }, new Set());
       const duplicate = repeatedTask(t);
       if (!bad.length && !duplicate) break;
+      if (!duplicate) { t.my_answer_de = ''; break; }   // Макс не справился своими словами — задание годное, лишний запрос не тратим
       feedback = [...bad, ...(duplicate ? ['задание слишком похоже на одно из последних; поменяй немецкое предложение, ситуацию и формулировку, сохранив учебную тему'] : [])].join('; ');
       if (i === retries()) t.my_answer_de = '';   // не получилось ответить только знакомыми словами — «пока не пробовал»
     }
-    // нейтральный эксперт проверяет и при необходимости исправляет задание, пишет эталонные ответы
-    let key = [], ruleRu = '';
-    if (t.task_ru || t.task_de) {
-      try {
-        const c = await askJson(TASK_CHECK_SYSTEM, [{ role: 'user', content: `ТИП: ${t.kind}\nИНСТРУКЦИЯ: ${t.task_ru}\nМАТЕРИАЛ: ${t.task_de || '—'}\nЧТО ТРЕНИРУЕМ: ${targetFocus.join(', ') || '—'}` }]);
-        if (c.ok === false && (c.task_ru || c.task_de)) {
-          if (c.task_ru) t.task_ru = c.task_ru;
-          if (c.task_de !== undefined) t.task_de = c.task_de;
-          t.my_answer_de = '';   // задание поменялось — прежний вариант Макса к нему не подходит
-        }
-        key = (c.answers_de || []).filter(Boolean).slice(0, 4); ruleRu = c.rule_ru || '';
-      } catch { /* эксперт недоступен — выдаём как есть */ }
-    }
+    // нейтральный эксперт проверяет задание В ФОНЕ, пока друг думает над ответом (раньше друг ждал ещё один запрос к модели)
+    const key = [], ruleRu = '';
     const now = Date.now();
     state.task = { id: 't' + now.toString(36), t: now, kind: t.kind || 'build_sentence', key, rule_ru: ruleRu, intro_ru: t.intro_ru || '', task_ru: t.task_ru || '', task_de: t.task_de || '',
       how_ru: t.how_ru || 'Напиши ответ одним сообщением.', example_ru: t.example_ru || '',
@@ -1466,6 +1464,7 @@ const FORGOTTEN = 0.2;
     state.recent_focus = [...(state.recent_focus || []), ...f.words, ...f.rules].slice(-12);
     if (drill) { state.drill.i++; state.task.drill = true; }
     if (f.reviewMode) state.task.review = true;
+    if (state.task.task_ru || state.task.task_de) checkTaskLater(state.task, targetFocus);
     state.turns++;
     const reply = { comprehension: [], learning: [], lookups: [], reply_de: '', reply_used: [], reply_gloss_ru: '', review_request: null,
       task: { id: state.task.id, kind: state.task.kind, kind_ru: KIND_RU[state.task.kind] || '', intro_ru: state.task.intro_ru, task_ru: state.task.task_ru,
@@ -1477,6 +1476,30 @@ const FORGOTTEN = 0.2;
     remember('Дай задание', `Предложил задание (${state.task.kind}): ${state.task.task_ru} ${state.task.task_de}`);
     persist();
     return { reply, tokens: [], warning: null };
+  }
+
+  // Проверка задания экспертом идёт после выдачи: эталонные ответы нужны только к проверке ответа друга.
+  // Если эксперт задание исправил, приложение показывает поправку; проверка ответа ждёт её (не дольше 30 с).
+  const pendingChecks = {};
+  function checkTaskLater(task, focus) {
+    const id = task.id;
+    pendingChecks[id] = (async () => {
+      try {
+        const c = await askJson(TASK_CHECK_SYSTEM, [{ role: 'user', content: `ТИП: ${task.kind}\nИНСТРУКЦИЯ: ${task.task_ru}\nМАТЕРИАЛ: ${task.task_de || '—'}\nЧТО ТРЕНИРУЕМ: ${(focus || []).join(', ') || '—'}` }], false, Date.now() + 90000);
+        const t = state.task && state.task.id === id ? state.task : null;   // после синхронизации объект задания мог смениться
+        if (!t || t.done) return;
+        t.key = (c.answers_de || []).filter(Boolean).slice(0, 4); t.rule_ru = c.rule_ru || '';
+        if (c.ok === false && (c.task_ru || c.task_de) && (c.task_ru !== t.task_ru || (c.task_de !== undefined && c.task_de !== t.task_de))) {
+          t.orig = { task_ru: t.task_ru, task_de: t.task_de };
+          if (c.task_ru) t.task_ru = c.task_ru;
+          if (c.task_de !== undefined) t.task_de = c.task_de;
+          t.my_answer_de = '';   // задание поменялось — прежний вариант Макса к нему не подходит
+          window.dispatchEvent(new CustomEvent('learner-task-fixed', { detail: { id, task_ru: t.task_ru, task_de: t.task_de, problem_ru: c.problem_ru || '' } }));
+        }
+        persist();
+      } catch { /* эксперт недоступен — задание остаётся как есть, проверяющий справится без эталона */ }
+      finally { delete pendingChecks[id]; }
+    })();
   }
 
   // вклад ответа друга в ОБЩИЙ прогресс: верно — слово/правило укрепляется; ошибка — почти ничего, но она запоминается
@@ -1495,9 +1518,11 @@ const FORGOTTEN = 0.2;
   }
 
   async function answerTurn(msg) {
-    const task = state.task;
+    let task = state.task;
+    if (pendingChecks[task.id]) { await withTimeout(pendingChecks[task.id], 30000, null); if (state.task && state.task.id === task.id) task = state.task; }
+    const seen = task.orig ? `\nВАЖНО: друг мог отвечать на первую версию задания (её потом поправили): «${task.orig.task_ru} ${task.orig.task_de || ''}»; если его ответ подходит к ней, оценивай по ней.` : '';
     const j = await askJson(TASK_JUDGE_SYSTEM, [{ role: 'user', content:
-      `ТИП: ${task.kind}\nЗАДАНИЕ: ${task.task_ru}\nМАТЕРИАЛ: ${task.task_de || '—'}\nЧТО ПРОВЕРЯЕТ: ${task.rule_ru || '—'}\nЭТАЛОННЫЕ ОТВЕТЫ: ${(task.key || []).join(' | ') || '—'}\nОТВЕТ ДРУГА: ${msg}\nОТВЕТ МАКСА: ${task.my_answer_de || '(не пробовал)'}` }]);
+      `ТИП: ${task.kind}\nЗАДАНИЕ: ${task.task_ru}\nМАТЕРИАЛ: ${task.task_de || '—'}${seen}\nЧТО ПРОВЕРЯЕТ: ${task.rule_ru || '—'}\nЭТАЛОННЫЕ ОТВЕТЫ: ${(task.key || []).join(' | ') || '—'}\nОТВЕТ ДРУГА: ${msg}\nОТВЕТ МАКСА: ${task.my_answer_de || '(не пробовал)'}` }]);
     const u = j.user || { verdict: 'wrong', errors: [] }, mx = task.my_answer_de ? (j.max || {}) : null;
     if (j.task_broken && u.verdict === 'wrong') { u.verdict = 'partly'; u.errors = ['Задание было составлено неудачно — это не твоя ошибка.', ...(u.errors || [])]; }
     const q = (BONUS[u.verdict] ?? 0.15) * (goalActive() ? 2.5 : 1);   // в закреплении верный ответ весит больше: он идёт после объяснения и усилий
@@ -2224,7 +2249,8 @@ const FORGOTTEN = 0.2;
     clearFeed: async () => { feed = []; save(LS_FEED, feed); if (CS) { clearTimeout(syncTimer); syncTimer = setTimeout(queueSync, 300); } return true; },
     book: bookApi, course: courseApi,
     chat: async (msg, mode, extra) => {
-      await progressReady; const r = await turn(msg, mode, extra);
+      await progressReady; turnDeadline = Date.now() + TURN_BUDGET;
+      let r; try { r = await turn(msg, mode, extra); } finally { turnDeadline = 0; }
       if (extra && extra.course && (mode === 'read' || mode === 'grammar')) {   // чтение и грамматика засчитываются сразу, упражнения — после ответа
         courseStepDone(extra.course, true); r.reply.course = courseBanner(extra.course); persist();
       }
