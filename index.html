@@ -505,6 +505,8 @@ function botHtml(d){
       <div>Твой ответ: <b>${esc(x.user)}</b> <span class="${u[0]}"><b>${u[1]}</b></span></div>
       ${(x.errors||[]).length?`<div class="note">Что не так: ${esc(x.errors.join('; '))}</div>`:''}
       ${x.correction&&x.verdict!=='ok'?`<div>Правильно: <b>${esc(x.correction)}</b></div>`:''}
+      ${x.translation_ru?`<div class="gloss" style="margin-top:6px">🇷🇺 <b>Перевод:</b> ${x.sentence_de?`<i>${esc(x.sentence_de)}</i> — `:''}${esc(x.translation_ru)}</div>`:''}
+      ${x.user_ru?`<div class="note">Твой ответ по смыслу: ${esc(x.user_ru)}</div>`:''}
       ${x.max_answer?`<div style="margin-top:6px">Мой вариант: <b>${esc(x.max_answer)}</b> <span class="${m[0]}"><b>${m[1]}</b></span>${(x.max_errors||[]).length?`<div class="note">${esc(x.max_errors.join('; '))}</div>`:''}</div>`:'<div class="note" style="margin-top:6px">Свой вариант я не успел(а) сделать.</div>'}
     </div>
     ${x.react_ru?`<div class="sum" style="margin-top:6px">${esc(x.react_ru)}</div>`:''}
