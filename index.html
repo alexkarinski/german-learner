@@ -603,6 +603,10 @@ const INTRO_HTML=(document.querySelector('#msgs .intro')||{}).outerHTML||'';   /
 $('#helpbtn').onclick=()=>{ add('bot note',INTRO_HTML.replace('class="note intro"','class="note"')); };
 let taskAnswerArmed=false;
 const backgroundTask=new URLSearchParams(location.search).get('backgroundTask');
+// кнопка «🎯 Задание по фразе» в напоминании: приложение открывается сразу с заданием по фразе дня
+const startQ=new URLSearchParams(location.search), dayPhrase=startQ.get('phrase')?{de:startQ.get('phrase').slice(0,200),ru:(startQ.get('ru')||'').slice(0,200),lvl:startQ.get('lvl')||''}:null;
+if(dayPhrase&&EN&&api.setLang)api.setLang('de').then(()=>location.reload());   // фраза немецкая — открываем немецкого Макса (адрес с фразой сохраняется)
+else if(dayPhrase)history.replaceState(null,'',location.pathname);   // повторное открытие не должно давать задание ещё раз
 if(backgroundTask){$('#in').value=backgroundTask;taskAnswerArmed=true;$('#in').placeholder='Ответь на задание Макса…';history.replaceState(null,'',location.pathname)}
 const shown=new Set();
 function renderFeedItem(it){
@@ -620,7 +624,8 @@ async function restoreFeed(){
 }
 restoreFeed().then(()=>{ if(api.nudge)api.nudge().then(t=>{ if(!t)return; if(typeof t==='string'){bubble(esc(t),true);return}
     bubble(esc(t.text),true);
-    if(t.review)add('bot',`<div class="card">🔁 ${esc(t.text)}<div class="chips"><button class="chip2" data-act="review">🔁 Повторить сейчас</button><button class="chip2" data-act="openmap">🗺 Что именно забывается</button></div></div>`); }); refreshPending(); });
+    if(t.review)add('bot',`<div class="card">🔁 ${esc(t.text)}<div class="chips"><button class="chip2" data-act="review">🔁 Повторить сейчас</button><button class="chip2" data-act="openmap">🗺 Что именно забывается</button></div></div>`); }); refreshPending();
+  if(dayPhrase&&!EN)send(`🎯 Задание по фразе дня: ${dayPhrase.de}${dayPhrase.ru?' — '+dayPhrase.ru:''}`,'task',{phrase:dayPhrase}); });
 // Telegram: высота окна с учётом клавиатуры и системных полос, чтобы поле ввода не пряталось под ними
 if(window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData){
   // устойчивая высота: viewportHeight меняется на каждом кадре, пока окно тянут или выезжает клавиатура, и экран дёргался

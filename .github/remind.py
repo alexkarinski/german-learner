@@ -5,6 +5,7 @@ import json
 import os
 import random
 import urllib.error
+import urllib.parse
 import urllib.request
 
 TOKEN, CHAT, APP = os.environ.get('TG_TOKEN', '').strip(), os.environ.get('TG_CHAT', '').strip(), os.environ.get('APP_URL', '').strip()
@@ -83,12 +84,14 @@ OPEN = random.choice([
     'Guten Abend! 🌙 Я уже открыл свою тетрадку. Повторим вместе?',
     'Привет! Я тут вспоминал наши слова и понял, что пара уже ускользает 😅 Спасём их?',
 ])
-text = f'{OPEN}\n\n💬 Фраза дня ({lvl}):\n{de}\n— {ru}\n\nПопробуй придумать с ней своё предложение и пришли мне в приложении — проверю 😉'
+text = f'{OPEN}\n\n💬 Фраза дня ({lvl}):\n{de}\n— {ru}\n\nЖми кнопку — дам задание на эту фразу, и потренируем её, пока не запомнится 😉'
+# кнопка открывает приложение сразу с заданием по фразе дня (приложение читает phrase/ru/lvl из адреса)
+PHRASE_APP = f"{APP}?{urllib.parse.urlencode({'phrase': de, 'ru': ru, 'lvl': lvl})}" if APP else ''
 
 # --- отправка: кнопка-приложение → обычная ссылка → просто текст (что-нибудь да дойдёт) ---
 attempts = []
 if APP:
-    attempts.append({'inline_keyboard': [[{'text': '🔁 Повторить с Максом', 'web_app': {'url': APP}}]]})
+    attempts.append({'inline_keyboard': [[{'text': '🎯 Задание по фразе', 'web_app': {'url': PHRASE_APP}}]]})
     attempts.append({'inline_keyboard': [[{'text': '🔁 Открыть Макса', 'url': APP}]]})
 attempts.append(None)
 for markup in attempts:
