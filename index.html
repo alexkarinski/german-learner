@@ -647,7 +647,7 @@ async function send(m,mode,extra){
   const wait=add('bot note',mode==='study'?(extra&&extra.images?'Распознаю скриншот, ищу тему в интернете, учусь и готовлю задания… (до минуты)':'Изучаю текст: тема, стиль, грамматика, ищу в интернете, готовлю задания… (до минуты)'):mode==='task'?'Макс придумывает задание и пробует его сам…':gram?'Разбираю грамматику: перевожу, ищу, чему надо научиться…':hasUrl?'Открываю ссылку и читаю статью…':reading?'Читаю текст, сверяюсь с записной книжкой…':'Ученик думает…');
   // счётчик секунд: видно, что Макс не завис; на долгом ожидании — подсказка про модель
   const t0=Date.now(), clock=document.createElement('span'); clock.className='waitclock'; wait.append(clock);
-  const tick=setInterval(()=>{const sec=Math.round((Date.now()-t0)/1000); clock.textContent=` · ${sec} с`+(sec>=45?' (модель сегодня медленная; дольше 2,5 мин ждать не буду)':'')},1000);
+  const tick=setInterval(()=>{const sec=Math.round((Date.now()-t0)/1000); clock.textContent=` · ${sec} с`+(sec>=45?' (модель сегодня медленная; дольше 4 мин ждать не буду)':'')},1000);
   mood('think'); bubble(gram?'Так, давайте разберёмся, как это переводится и чему мне надо научиться…':hasUrl?'Открываю статью…':reading?'Читаю… Посмотрим, что я тут понимаю.':'Хм… (если не знаю слова — загляну в словарь)',true);
   try{
     const d=await api.chat(m,mode,extra);
